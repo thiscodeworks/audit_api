@@ -79,7 +79,7 @@ class AuditController {
         echo json_encode([
             'status' => 'success',
             'data' => [
-                'chat_uuid' => $chatUuid
+                'uuid' => $chatUuid
             ]
         ]);
     }
