@@ -14,6 +14,13 @@ class AnthropicService {
     public function getResponse($messages, $systemPrompt, $chatUuid) {
         error_log("Starting streaming for chat: " . $chatUuid);
         
+        // Send start message event
+        $this->pusherService->trigger(
+            'chat-' . $chatUuid,
+            'message-start',
+            ['status' => 'started']
+        );
+
         $formattedMessages = [];
         foreach ($messages as $message) {
             $formattedMessages[] = [
@@ -139,8 +146,27 @@ class AnthropicService {
             $this->message = new Message();
             $messageUuid = $this->message->create($chatUuid, $completeResponse, 'assistant');
             error_log("Saved assistant message with UUID: " . $messageUuid);
+
+            // Send end message event with the message UUID
+            $this->pusherService->trigger(
+                'chat-' . $chatUuid,
+                'message-end',
+                [
+                    'status' => 'completed',
+                    'message_uuid' => $messageUuid
+                ]
+            );
         } else {
             error_log("Warning: Empty response from assistant");
+            // Send error end message event
+            $this->pusherService->trigger(
+                'chat-' . $chatUuid,
+                'message-end',
+                [
+                    'status' => 'error',
+                    'error' => 'Empty response from assistant'
+                ]
+            );
         }
 
         return true;
