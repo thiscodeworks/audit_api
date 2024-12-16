@@ -41,7 +41,7 @@ $router->post('/audit/{uuid}/start', 'AuditController@start');
 
 // Chat routes
 $router->get('/chat/list', 'ChatController@list');
-$router->get('/chat/{uuid}', 'ChatController@get');
+$router->get('/chat/{uuid}/get', 'ChatController@get');
 $router->post('/message/{uuid}/send', 'MessageController@send');
 
 $router->handleRequest();
