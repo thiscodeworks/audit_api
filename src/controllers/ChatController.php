@@ -12,7 +12,7 @@ class ChatController {
     public function list() {
         try {
             $chats = $this->chat->getAll();
-            echo json_encode(['chats' => $chats]);
+            echo json_encode(['data' => $chats]);
         } catch (Exception $e) {
             error_log("Error in ChatController@list: " . $e->getMessage());
             http_response_code(500);
@@ -23,7 +23,7 @@ class ChatController {
     public function get($uuid) {
         try {
             $chat = new Chat();
-            $chatData = $chat->getByUuid($uuid);
+            $chatData = ["data"=>$chat->getByUuid($uuid)];
             
             if (!$chatData) {
                 http_response_code(404);
