@@ -62,7 +62,7 @@ class AuditController {
                 return;
             }
 
-            echo json_encode($audit);
+            echo json_encode(["data"=>$audit]);
         } catch (Exception $e) {
             error_log("Error in AuditController@get: " . $e->getMessage());
             http_response_code(500);
