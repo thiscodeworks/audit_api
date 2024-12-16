@@ -35,14 +35,13 @@ if (str_starts_with($_SERVER['REQUEST_URI'], '/admin/') && $_SERVER['REQUEST_URI
 $router->get('/audit/list', 'AuditController@list');
 $router->post('/audit/post', 'AuditController@create');
 $router->get('/audit/{uuid}/get', 'AuditController@get');
-$router->get('/audit/{uuid}', 'AuditController@get');
 $router->delete('/audit/{uuid}/delete', 'AuditController@delete');
 $router->put('/audit/{uuid}/edit', 'AuditController@edit');
 $router->post('/audit/{uuid}/start', 'AuditController@start');
 
 // Chat routes
 $router->get('/chat/list', 'ChatController@list');
-$router->get('/chat/{uuid}/get', 'ChatController@get');
+$router->get('/chat/{uuid}', 'ChatController@get');
 $router->post('/message/{uuid}/send', 'MessageController@send');
 
 $router->handleRequest();
