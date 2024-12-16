@@ -7,6 +7,38 @@ class Chat {
         $this->db = Database::getInstance();
     }
 
+    public function getAll() {
+        $stmt = $this->db->prepare("
+            SELECT c.*,
+                   a.company_name,
+                   (SELECT COUNT(*) FROM messages m WHERE m.chat_uuid = c.uuid AND m.is_hidden = 0) as message_count,
+                   (SELECT created_at 
+                    FROM messages 
+                    WHERE chat_uuid = c.uuid 
+                    ORDER BY created_at DESC 
+                    LIMIT 1) as last_message_at
+            FROM chats c
+            LEFT JOIN audits a ON c.audit_uuid = a.uuid
+            ORDER BY c.created_at DESC
+        ");
+        
+        $stmt->execute();
+        $chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Format the response
+        return array_map(function($chat) {
+            return [
+                'uuid' => $chat['uuid'],
+                'audit_uuid' => $chat['audit_uuid'],
+                'company_name' => $chat['company_name'],
+                'message_count' => (int)$chat['message_count'],
+                'last_message_at' => $chat['last_message_at'],
+                'created_at' => $chat['created_at'],
+                'updated_at' => $chat['updated_at']
+            ];
+        }, $chats);
+    }
+    
     public function getByUuid($uuid) {
         $uuid = is_array($uuid) ? $uuid['uuid'] : $uuid;
         
