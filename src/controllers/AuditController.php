@@ -140,7 +140,7 @@ class AuditController {
             }
 
             $chatUuid = $this->chat->create($uuid);
-            echo json_encode(['uuid' => $chatUuid]);
+            echo json_encode(['data'=>['uuid' => $chatUuid]]);
         } catch (Exception $e) {
             error_log("Error in AuditController@start: " . $e->getMessage());
             http_response_code(500);
