@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "07bf0b8c00491d139a571ea0a980e862",
+    "content-hash": "2b5ca475acf20c88626e91ef01e29b4f",
     "packages": [
         {
             "name": "guzzlehttp/guzzle",
@@ -803,15 +803,55 @@
                 }
             ],
             "time": "2024-04-18T09:32:20+00:00"
+        },
+        {
+            "name": "wildbit/postmark-php",
+            "version": "v6.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ActiveCampaign/postmark-php.git",
+                "reference": "cf309a283e09bae0c6e1cac19e592c8eedb6a619"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/ActiveCampaign/postmark-php/zipball/cf309a283e09bae0c6e1cac19e592c8eedb6a619",
+                "reference": "cf309a283e09bae0c6e1cac19e592c8eedb6a619",
+                "shasum": ""
+            },
+            "require": {
+                "guzzlehttp/guzzle": "^7.8",
+                "php": "~8.1 || ~8.2|| ~8.3"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.40",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^9"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Postmark\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "The officially supported client for Postmark (http://postmarkapp.com)",
+            "support": {
+                "issues": "https://github.com/ActiveCampaign/postmark-php/issues",
+                "source": "https://github.com/ActiveCampaign/postmark-php/tree/v6.0.9"
+            },
+            "time": "2024-10-15T16:40:23+00:00"
         }
     ],
     "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
-    "platform": [],
-    "platform-dev": [],
+    "platform": {},
+    "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }

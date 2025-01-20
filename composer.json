@@ -1,5 +1,6 @@
 {
     "require": {
-        "pusher/pusher-php-server": "^7.0"
+        "pusher/pusher-php-server": "^7.0",
+        "wildbit/postmark-php": "^6.0"
     }
-} 
+}

@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../models/Message.php';
+
 class AnthropicService {
     private $apiKey;
     private $baseUrl = 'https://api.anthropic.com/v1/messages';
@@ -30,7 +32,7 @@ class AnthropicService {
         }
 
         $data = [
-            'model' => 'claude-3-haiku-20240307',
+            'model' => 'claude-3-5-haiku-20241022', //claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022
             'max_tokens' => 4096,
             'messages' => $formattedMessages,
             'stream' => true,
@@ -170,5 +172,47 @@ class AnthropicService {
         }
 
         return true;
+    }
+
+    public function analyze($prompt) {
+        try {
+            $data = [
+                'model' => 'claude-3-haiku-20240307',
+                'max_tokens' => 1024,
+                'messages' => [
+                    [
+                        'role' => 'user',
+                        'content' => $prompt
+                    ]
+                ],
+                'stream' => false,
+                'temperature' => 0.7
+            ];
+
+            $ch = curl_init($this->baseUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'anthropic-version: 2023-06-01',
+                'x-api-key: ' . $this->apiKey
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                error_log("Anthropic API error: " . $response);
+                throw new Exception("Error getting response from Anthropic API");
+            }
+
+            $responseData = json_decode($response, true);
+            return $responseData['content'][0]['text'];
+        } catch (Exception $e) {
+            error_log("Error in AnthropicService analyze: " . $e->getMessage());
+            throw $e;
+        }
     }
 } 

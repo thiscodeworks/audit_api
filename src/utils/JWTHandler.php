@@ -7,21 +7,24 @@ class JWTHandler {
     private $audience;
 
     public function __construct() {
-        $this->secret_key = Env::get('JWT_SECRET', 'default_secret_key');
-        $this->issuer = Env::get('JWT_ISSUER', 'default_issuer');
-        $this->audience = Env::get('JWT_AUDIENCE', 'default_audience');
+        $this->secret_key = Env::get('JWT_SECRET', 'your-secret-key-here');
+        $this->issuer = Env::get('JWT_ISSUER', 'auditbot-api');
+        $this->audience = Env::get('JWT_AUDIENCE', 'auditbot-client');
     }
 
-    public function generateToken($user_id) {
+    public function generateToken($user) {
         $issued_at = time();
-        $expiration = $issued_at + (60 * 60); // 1 hour expiration
+        $expiration = $issued_at + (60 * 60 * 24); // 24 hours expiration
         
         $payload = [
             "iss" => $this->issuer,
             "aud" => $this->audience,
             "iat" => $issued_at,
             "exp" => $expiration,
-            "user_id" => $user_id
+            "data" => [
+                "id" => $user['id'],
+                "username" => $user['username']
+            ]
         ];
 
         return $this->encode($payload);

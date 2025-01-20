@@ -67,6 +67,7 @@ class Chat {
         $chat = [
             'uuid' => $results[0]['uuid'],
             'audit_uuid' => $results[0]['audit_uuid'],
+            'user' => $results[0]['user'],
             'created_at' => $results[0]['created_at'],
             'updated_at' => $results[0]['updated_at'],
             'messages' => []
@@ -87,15 +88,20 @@ class Chat {
         return $chat;
     }
 
-    public function create($auditUuid) {
-        $uuid = $this->generateUuid();
-        $stmt = $this->db->prepare("
-            INSERT INTO chats (uuid, audit_uuid, created_at, updated_at)
-            VALUES (?, ?, NOW(), NOW())
-        ");
-        
-        $stmt->execute([$uuid, $auditUuid]);
-        return $uuid;
+    public function create($auditUuid, $userId = null) {
+        try {
+            $uuid = $this->generateUuid();
+            
+            $stmt = $this->db->prepare("
+                INSERT INTO chats (uuid, audit_uuid, user)
+                VALUES (?, ?, ?)
+            ");
+            $stmt->execute([$uuid, $auditUuid, $userId]);
+            
+            return $uuid;
+        } catch (PDOException $e) {
+            throw new Exception("Error creating chat: " . $e->getMessage());
+        }
     }
 
     private function generateUuid() {

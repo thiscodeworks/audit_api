@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   web:
+    container_name: auditbot
     build: .
     ports:
       - "${API_PORT}:80"
@@ -19,11 +20,14 @@ services:
       - JWT_ISSUER=${JWT_ISSUER}
       - JWT_AUDIENCE=${JWT_AUDIENCE}
       - FRONTEND_URL=${FRONTEND_URL}
+      - POSTMARK_API_TOKEN=${POSTMARK_API_TOKEN}
+      - POSTMARK_FROM_EMAIL=${POSTMARK_FROM_EMAIL}
     networks:
-      - crm-network
+      - auditbot-network
 
   db:
     image: mariadb:10.6.12
+    container_name: auditbot_db
     environment:
       MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
@@ -41,7 +45,7 @@ services:
       retries: 5
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     networks:
-      - crm-network
+      - auditbot-network
 
   adminer:
     image: adminer
@@ -50,10 +54,10 @@ services:
     depends_on:
       - db
     networks:
-      - crm-network
+      - auditbot-network
 
 networks:
-  crm-network:
+  auditbot-network:
     driver: bridge
 
 volumes:

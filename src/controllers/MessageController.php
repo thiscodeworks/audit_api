@@ -3,10 +3,19 @@
 require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/Chat.php';
 require_once __DIR__ . '/../models/Audit.php';
+require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../services/AnthropicService.php';
 require_once __DIR__ . '/../services/PusherService.php';
 
 class MessageController {
+    public function __construct() {
+        $this->message = new Message();
+        $this->chat = new Chat();
+        $this->user = new User();
+        $this->pusherService = new PusherService();
+        $this->anthropic = new AnthropicService($this->pusherService);
+    }
+
     public function send($params) {
         try {
             $chatUuid = $params['uuid'];
@@ -48,14 +57,35 @@ class MessageController {
             $pusherService = new PusherService();
             $anthropic = new AnthropicService($pusherService);
 
-            // Start streaming response
-            $anthropic->getResponse($messages, $auditData['ai_system'], $chatUuid);
+            // Initialize userData as null
+            $userData = null;
+            
+            // Modify system prompt if user is associated with the chat
+            $systemPrompt = $auditData['ai_system'];
+            if (isset($chatData['user']) && $chatData['user']) {
+                $userData = $this->user->getById($chatData['user']);
+                if ($userData && isset($userData['name']) && isset($userData['position'])) {
+                    // Insert user info right after the chatbot opening tag
+                    $userInfo = "\n    <user_info>\n        <name>{$userData['name']}</name>\n        <position>{$userData['position']}</position>\n    </user_info>";
+                    $systemPrompt = preg_replace('/<chatbot([^>]*)>/', "<chatbot$1>{$userInfo}", $systemPrompt);
+                }
+            }
 
-            echo json_encode([
+            // Start streaming response
+            $anthropic->getResponse($messages, $systemPrompt, $chatUuid);
+
+            $response = [
                 'status' => 'streaming',
                 'user_message_uuid' => $userMessageUuid,
                 'chat_channel' => 'chat-' . $chatUuid
-            ]);
+            ];
+
+            // Only include user data if it exists
+            if ($userData) {
+                $response['user'] = $userData;
+            }
+
+            echo json_encode($response);
 
         } catch (Exception $e) {
             error_log("Error in MessageController: " . $e->getMessage());

@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/../utils/JWTHandler.php';
 
 class AuthMiddleware {
-    private $db;
+    private $jwt;
 
     public function __construct() {
-        $this->db = Database::getInstance();
+        $this->jwt = new JWTHandler();
     }
 
     public function authenticate() {
@@ -17,14 +18,11 @@ class AuthMiddleware {
         }
 
         $token = str_replace('Bearer ', '', $headers['Authorization']);
+        $decoded = $this->jwt->validateToken($token);
         
-        $stmt = $this->db->prepare("SELECT id FROM users WHERE auth_token = ?");
-        $stmt->execute([$token]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$user) {
+        if (!$decoded) {
             http_response_code(401);
-            echo json_encode(['error' => 'Invalid token']);
+            echo json_encode(['error' => 'Invalid or expired token']);
             return false;
         }
 
