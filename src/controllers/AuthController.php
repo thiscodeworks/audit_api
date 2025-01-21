@@ -46,9 +46,14 @@ class AuthController {
     }
 
     public function me() {
-        $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+        $rawHeaders = getallheaders();
+        error_log('Raw headers: ' . print_r($rawHeaders, true));
+        
+        $headers = array_change_key_case($rawHeaders, CASE_UPPER);
+        error_log('Uppercase headers: ' . print_r($headers, true));
         
         if (!isset($headers['AUTHORIZATION'])) {
+            error_log('Authorization header not found in: ' . implode(', ', array_keys($headers)));
             http_response_code(401);
             echo json_encode(['error' => 'No authorization token provided']);
             return;
