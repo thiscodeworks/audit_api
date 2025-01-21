@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../models/Analysis.php';
 require_once __DIR__ . '/../services/AnthropicService.php';
 require_once __DIR__ . '/../utils/Env.php';
+require_once __DIR__ . '/../services/PusherService.php';
 
 class AnalysisService {
     private $analysis;
@@ -9,11 +10,7 @@ class AnalysisService {
 
     public function __construct() {
         $this->analysis = new Analysis();
-        $apiKey = Env::get('ANTHROPIC_API_KEY');
-        if (!$apiKey) {
-            throw new Exception('ANTHROPIC_API_KEY not found in environment variables');
-        }
-        $this->anthropic = new AnthropicService($apiKey);
+        $this->anthropic = new AnthropicService();
     }
 
     public function analyzeSingleChat($chatUuid) {

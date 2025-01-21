@@ -8,12 +8,16 @@ class AnthropicService {
     private $pusherService;
     private $message;
 
-    public function __construct(PusherService $pusherService) {
+    public function __construct(?PusherService $pusherService = null) {
         $this->apiKey = getenv('ANTHROPIC_API_KEY');
         $this->pusherService = $pusherService;
     }
 
     public function getResponse($messages, $systemPrompt, $chatUuid) {
+        if (!$this->pusherService) {
+            throw new Exception('PusherService is required for streaming responses');
+        }
+
         error_log("Starting streaming for chat: " . $chatUuid);
         
         // Send start message event
@@ -175,44 +179,35 @@ class AnthropicService {
     }
 
     public function analyze($prompt) {
-        try {
-            $data = [
-                'model' => 'claude-3-haiku-20240307',
-                'max_tokens' => 1024,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => $prompt
-                    ]
-                ],
-                'stream' => false,
-                'temperature' => 0.7
-            ];
+        $data = [
+            'model' => 'claude-3-5-haiku-20241022',
+            'max_tokens' => 4096,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'stream' => false,
+            'temperature' => 0.7
+        ];
 
-            $ch = curl_init($this->baseUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'anthropic-version: 2023-06-01',
-                'x-api-key: ' . $this->apiKey
-            ]);
+        $ch = curl_init($this->baseUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'x-api-key: ' . $this->apiKey,
+            'anthropic-version: 2023-06-01'
+        ]);
 
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-            if ($httpCode !== 200) {
-                error_log("Anthropic API error: " . $response);
-                throw new Exception("Error getting response from Anthropic API");
-            }
-
-            $responseData = json_decode($response, true);
-            return $responseData['content'][0]['text'];
-        } catch (Exception $e) {
-            error_log("Error in AnthropicService analyze: " . $e->getMessage());
-            throw $e;
+        if ($httpCode !== 200) {
+            throw new Exception('Failed to get response from Anthropic API: ' . $response);
         }
+
+        $responseData = json_decode($response, true);
+        return $responseData['content'][0]['text'];
     }
 } 
