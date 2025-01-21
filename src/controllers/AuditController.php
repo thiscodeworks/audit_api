@@ -187,6 +187,10 @@ class AuditController {
                     'name' => $user['name'],
                     'email' => $user['email'],
                     'state' => $user['state'],
+                    'code' => $user['code'],
+                    'view' => (bool)$user['view'],
+                    'invite' => (bool)$user['invite'],
+                    'push' => (bool)$user['push'],
                     'stats' => [
                         'chats' => (int)$user['chat_count'],
                         'messages' => (int)$user['message_count']
@@ -355,6 +359,62 @@ class AuditController {
             echo json_encode([
                 'error' => 'Internal server error',
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    public function getAvailableUsers($params) {
+        try {
+            $uuid = $params['uuid'];
+            $users = $this->audit->getAvailableUsers($uuid);
+            
+            if (!$users) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Audit not found']);
+                return;
+            }
+
+            echo json_encode([
+                'data' => $users,
+                'total' => count($users)
+            ]);
+        } catch (Exception $e) {
+            error_log("Error in AuditController@getAvailableUsers: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Internal server error']);
+        }
+    }
+
+    public function assignUser($params) {
+        try {
+            $uuid = $params['uuid'];
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            if (!isset($data['userId'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'User ID is required']);
+                return;
+            }
+
+            $result = $this->audit->assignUser($uuid, $data['userId']);
+            
+            if (isset($result['error'])) {
+                http_response_code(404);
+                echo json_encode(['error' => $result['error']]);
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'code' => $result['code']
+            ]);
+        } catch (Exception $e) {
+            error_log("Error in AuditController@assignUser: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'details' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
         }

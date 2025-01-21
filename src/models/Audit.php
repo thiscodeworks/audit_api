@@ -227,6 +227,10 @@ class Audit {
                     u.id,
                     u.name,
                     u.email as email,
+                    ua.code,
+                    ua.view,
+                    ua.invite,
+                    ua.push,
                     CASE 
                         WHEN EXISTS (
                             SELECT 1 FROM chats c 
@@ -238,9 +242,10 @@ class Audit {
                     COUNT(DISTINCT m.id) as message_count
                 FROM audit_users au
                 JOIN users u ON u.id = au.user_id
+                LEFT JOIN users_audit ua ON ua.user = u.id AND ua.audit = (SELECT audit_id FROM audit_data LIMIT 1)
                 LEFT JOIN chats c ON c.user = u.id AND c.audit_uuid = ?
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                GROUP BY u.id
+                GROUP BY u.id, ua.code, ua.view, ua.invite, ua.push
                 ORDER BY u.name";
 
             $stmt = $this->db->prepare($sql);
@@ -408,6 +413,106 @@ class Audit {
             return $result ? $result['organization'] : null;
         } catch (PDOException $e) {
             throw new Exception("Error getting user organization: " . $e->getMessage());
+        }
+    }
+
+    public function getAvailableUsers($uuid) {
+        try {
+            // Get the audit details to get the organization
+            $stmt = $this->db->prepare("
+                SELECT id, organization FROM audits WHERE uuid = ?
+            ");
+            $stmt->execute([$uuid]);
+            $audit = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$audit) {
+                return null;
+            }
+
+            // Get users from the same organization who are not assigned to this audit
+            $stmt = $this->db->prepare("
+                SELECT 
+                    u.id,
+                    u.name,
+                    u.email,
+                    u.position
+                FROM users u
+                JOIN users_organization uo ON uo.user = u.id
+                WHERE uo.organization = ?
+                AND NOT EXISTS (
+                    SELECT 1 
+                    FROM users_audit ua 
+                    WHERE ua.user = u.id 
+                    AND ua.audit = ?
+                )
+                ORDER BY u.name
+            ");
+            $stmt->execute([$audit['organization'], $audit['id']]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        } catch (PDOException $e) {
+            throw new Exception("Error fetching available users: " . $e->getMessage());
+        }
+    }
+
+    public function assignUser($uuid, $userId) {
+        try {
+            // Get the audit ID
+            $stmt = $this->db->prepare("SELECT id, type FROM audits WHERE uuid = ?");
+            $stmt->execute([$uuid]);
+            $audit = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$audit) {
+                return ['error' => 'Audit not found'];
+            }
+
+            // Check if the audit is of type 'assign'
+            if ($audit['type'] !== 'assign') {
+                return ['error' => 'This audit does not support user assignments'];
+            }
+
+            // Check if user exists
+            $stmt = $this->db->prepare("SELECT id FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            if (!$stmt->fetch()) {
+                return ['error' => 'User not found'];
+            }
+
+            // Check if user is already assigned
+            $stmt = $this->db->prepare("
+                SELECT 1 FROM users_audit 
+                WHERE user = ? AND audit = ?
+            ");
+            $stmt->execute([$userId, $audit['id']]);
+            if ($stmt->fetch()) {
+                return ['error' => 'User is already assigned to this audit'];
+            }
+
+            // Generate a unique 6-digit code
+            do {
+                $code = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                $stmt = $this->db->prepare("
+                    SELECT 1 FROM users_audit 
+                    WHERE code = ? AND audit = ?
+                ");
+                $stmt->execute([$code, $audit['id']]);
+            } while ($stmt->fetch());
+
+            // Create the assignment
+            $stmt = $this->db->prepare("
+                INSERT INTO users_audit (user, audit, code)
+                VALUES (?, ?, ?)
+            ");
+            $stmt->execute([$userId, $audit['id'], $code]);
+
+            return [
+                'success' => true,
+                'code' => $code
+            ];
+
+        } catch (PDOException $e) {
+            error_log("Error assigning user: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            throw new Exception("Error assigning user: " . $e->getMessage());
         }
     }
 }

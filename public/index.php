@@ -60,6 +60,8 @@ function registerRoutes($router) {
     $router->get('/audit/{uuid}/stats', 'AuditController@stats');
     $router->get('/audit/{uuid}/users', 'AuditController@users');
     $router->get('/audit/{uuid}/chats', 'AuditController@chats');
+    $router->get('/audit/{uuid}/available-users', 'AuditController@getAvailableUsers');
+    $router->post('/audit/{uuid}/assign', 'AuditController@assignUser');
     $router->post('/audit/post', 'AuditController@create');
     $router->get('/audit/{uuid}/get', 'AuditController@get', false);
     $router->delete('/audit/{uuid}/delete', 'AuditController@delete');
