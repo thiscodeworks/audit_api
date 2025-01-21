@@ -19,6 +19,7 @@ class UserController {
                     'id' => $user['id'],
                     'username' => $user['username'],
                     'name' => $user['name'],
+                    'email' => $user['email'],
                     'organization' => $user['organization_name'],
                     'permission' => $user['permission'] ?? 'user',
                     'stats' => [

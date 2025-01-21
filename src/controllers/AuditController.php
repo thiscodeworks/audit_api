@@ -331,7 +331,7 @@ class AuditController {
             error_log("Sending template email to: " . $user['email']);
             $result = $this->postmark->sendTemplate(
                 $user['email'],
-                'audit-invitation',  // Using template alias instead of ID
+                'user-invitation',  // Using template alias instead of ID
                 $templateModel,
                 "Pozvánka k auditu: " . $audit['organization_name']
             );

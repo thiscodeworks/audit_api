@@ -39,6 +39,7 @@ class User {
                     u.id,
                     u.username,
                     u.name,
+                    u.email,
                     u.created_at,
                     u.updated_at,
                     up.permission,
