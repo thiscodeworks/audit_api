@@ -46,15 +46,15 @@ class AuthController {
     }
 
     public function me() {
-        $headers = getallheaders();
+        $headers = array_change_key_case(getallheaders(), CASE_UPPER);
         
-        if (!isset($headers['Authorization'])) {
+        if (!isset($headers['AUTHORIZATION'])) {
             http_response_code(401);
             echo json_encode(['error' => 'No authorization token provided']);
             return;
         }
 
-        $token = str_replace('Bearer ', '', $headers['Authorization']);
+        $token = str_replace('Bearer ', '', $headers['AUTHORIZATION']);
         $decoded = $this->jwt->validateToken($token);
         
         if (!$decoded) {
