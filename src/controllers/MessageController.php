@@ -8,6 +8,12 @@ require_once __DIR__ . '/../services/AnthropicService.php';
 require_once __DIR__ . '/../services/PusherService.php';
 
 class MessageController {
+    private Message $message;
+    private Chat $chat;
+    private User $user;
+    private PusherService $pusherService;
+    private AnthropicService $anthropic;
+
     public function __construct() {
         $this->message = new Message();
         $this->chat = new Chat();
