@@ -1,4 +1,7 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 class Audit {
     private $db;
@@ -9,7 +12,11 @@ class Audit {
 
     public function getAll() {
         try {
-            $stmt = $this->db->prepare("
+            // Get current user's organization
+            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
+            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+
+            $sql = "
                 SELECT 
                     a.id,
                     a.uuid,
@@ -21,7 +28,7 @@ class Audit {
                     a.created_at,
                     a.updated_at,
                     u.name as creator_name,
-                    u.company as creator_company,
+                    a.company_name as creator_company,
                     COUNT(DISTINCT c.id) as total_chats,
                     COUNT(DISTINCT m.id) as total_messages,
                     CASE 
@@ -43,11 +50,23 @@ class Audit {
                 FROM audits a
                 LEFT JOIN chats c ON c.audit_uuid = a.uuid
                 LEFT JOIN users u ON u.id = c.user
-                LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                GROUP BY a.id
-                ORDER BY a.created_at DESC
-            ");
-            $stmt->execute();
+                LEFT JOIN messages m ON m.chat_uuid = c.uuid";
+
+            // Add organization filter if user has an organization
+            if ($userOrg) {
+                $sql .= " WHERE a.organization = ?";
+            }
+
+            $sql .= " GROUP BY a.id ORDER BY a.created_at DESC";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($userOrg) {
+                $stmt->execute([$userOrg]);
+            } else {
+                $stmt->execute();
+            }
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             throw new Exception("Error fetching audits: " . $e->getMessage());
@@ -59,8 +78,7 @@ class Audit {
             $stmt = $this->db->prepare("
                 SELECT 
                     a.*,
-                    u.name as creator_name,
-                    u.company as creator_company,
+                    o.name as organization_name,
                     COUNT(DISTINCT c.id) as total_chats,
                     COUNT(DISTINCT m.id) as total_messages,
                     CASE 
@@ -88,8 +106,8 @@ class Audit {
                         ELSE NULL
                     END as access_codes
                 FROM audits a
+                LEFT JOIN organizations o ON o.id = a.organization
                 LEFT JOIN chats c ON c.audit_uuid = a.uuid
-                LEFT JOIN users u ON u.id = c.user
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
                 WHERE a.uuid = ?
                 GROUP BY a.id
@@ -103,7 +121,11 @@ class Audit {
 
     public function getStats($uuid) {
         try {
-            $stmt = $this->db->prepare("
+            // Get current user's organization
+            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
+            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+
+            $sql = "
                 SELECT 
                     a.*,
                     COUNT(DISTINCT c.id) as total_chats,
@@ -127,18 +149,33 @@ class Audit {
                 FROM audits a
                 LEFT JOIN chats c ON c.audit_uuid = a.uuid
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                WHERE a.uuid = ?
-                GROUP BY a.id
-            ");
-            $stmt->execute([$uuid]);
+                WHERE a.uuid = ?";
+
+            // Add organization filter if user has an organization
+            if ($userOrg) {
+                $sql .= " AND a.organization = ?";
+            }
+
+            $sql .= " GROUP BY a.id";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($userOrg) {
+                $stmt->execute([$uuid, $userOrg]);
+            } else {
+                $stmt->execute([$uuid]);
+            }
+
             $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
             // Mock sentiment data (in real app, this would come from analysis)
-            $stats['sentiment'] = [
-                'positive' => 45,
-                'neutral' => 35,
-                'negative' => 20
-            ];
+            if ($stats) {
+                $stats['sentiment'] = [
+                    'positive' => 45,
+                    'neutral' => 35,
+                    'negative' => 20
+                ];
+            }
 
             return $stats;
         } catch (PDOException $e) {
@@ -148,15 +185,25 @@ class Audit {
 
     public function getUsers($uuid) {
         try {
-            $stmt = $this->db->prepare("
+            // Get current user's organization
+            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
+            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+
+            $sql = "
                 WITH audit_data AS (
                     SELECT 
                         a.id as audit_id,
                         a.type,
-                        a.uuid
+                        a.uuid,
+                        a.organization
                     FROM audits a
-                    WHERE a.uuid = ?
-                ),
+                    WHERE a.uuid = ?";
+
+            if ($userOrg) {
+                $sql .= " AND a.organization = ?";
+            }
+
+            $sql .= "),
                 audit_users AS (
                     -- Get assigned users
                     SELECT 
@@ -194,9 +241,16 @@ class Audit {
                 LEFT JOIN chats c ON c.user = u.id AND c.audit_uuid = ?
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
                 GROUP BY u.id
-                ORDER BY u.name
-            ");
-            $stmt->execute([$uuid, $uuid, $uuid]);
+                ORDER BY u.name";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($userOrg) {
+                $stmt->execute([$uuid, $userOrg, $uuid, $uuid]);
+            } else {
+                $stmt->execute([$uuid, $uuid, $uuid]);
+            }
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             throw new Exception("Error fetching audit users: " . $e->getMessage());
@@ -205,20 +259,37 @@ class Audit {
 
     public function getChats($uuid) {
         try {
-            $stmt = $this->db->prepare("
+            // Get current user's organization
+            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
+            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+
+            $sql = "
                 SELECT 
                     c.uuid as chat_uuid,
                     u.name as username,
                     COUNT(m.id) as message_count,
                     c.created_at
-                FROM chats c
+                FROM audits a
+                JOIN chats c ON c.audit_uuid = a.uuid
                 LEFT JOIN users u ON u.id = c.user
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                WHERE c.audit_uuid = ?
-                GROUP BY c.id
-                ORDER BY c.created_at DESC
-            ");
-            $stmt->execute([$uuid]);
+                WHERE a.uuid = ?";
+
+            // Add organization filter if user has an organization
+            if ($userOrg) {
+                $sql .= " AND a.organization = ?";
+            }
+
+            $sql .= " GROUP BY c.id ORDER BY c.created_at DESC";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($userOrg) {
+                $stmt->execute([$uuid, $userOrg]);
+            } else {
+                $stmt->execute([$uuid]);
+            }
+
             $chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Add mock data for sentiment and goal fulfillment
@@ -322,6 +393,21 @@ class Audit {
         } catch (PDOException $e) {
             error_log("Error getting user access code: " . $e->getMessage());
             return null;
+        }
+    }
+
+    private function getUserOrganization($userId) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT organization 
+                FROM users_organization 
+                WHERE user = ?
+            ");
+            $stmt->execute([$userId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $result ? $result['organization'] : null;
+        } catch (PDOException $e) {
+            throw new Exception("Error getting user organization: " . $e->getMessage());
         }
     }
 }

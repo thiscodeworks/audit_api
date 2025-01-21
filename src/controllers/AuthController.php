@@ -19,7 +19,7 @@ class AuthController {
             return;
         }
 
-        $stmt = $this->db->prepare("SELECT id, username, password, name, company FROM users WHERE username = ?");
+        $stmt = $this->db->prepare("SELECT id, username, password, name FROM users WHERE username = ?");
         $stmt->execute([$data['username']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -40,8 +40,7 @@ class AuthController {
             'user' => [
                 'id' => $user['id'],
                 'username' => $user['username'],
-                'name' => $user['name'],
-                'company' => $user['company']
+                'name' => $user['name']
             ]
         ]);
     }
@@ -64,7 +63,7 @@ class AuthController {
             return;
         }
 
-        $stmt = $this->db->prepare("SELECT id, username, name, company, created_at FROM users WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT id, username, name, created_at FROM users WHERE id = ?");
         $stmt->execute([$decoded->data->id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -79,7 +78,6 @@ class AuthController {
                 'id' => $user['id'],
                 'username' => $user['username'],
                 'name' => $user['name'],
-                'company' => $user['company'],
                 'created_at' => $user['created_at']
             ]
         ]);

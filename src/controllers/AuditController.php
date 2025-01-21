@@ -250,7 +250,7 @@ class AuditController {
 
             // Use the Audit model to find the audit by code
             $result = $this->audit->findByCode($data['code']);
-
+            
             if (!$result) {
                 http_response_code(404);
                 echo json_encode([
@@ -279,7 +279,10 @@ class AuditController {
     public function mail($params) {
         try {
             $uuid = $params['uuid'];
+            error_log("Mail request for audit UUID: " . $uuid);
+            
             $data = json_decode(file_get_contents('php://input'), true);
+            error_log("Received data: " . json_encode($data));
             
             if (!isset($data['userId']) || !isset($data['type'])) {
                 http_response_code(400);
@@ -288,7 +291,9 @@ class AuditController {
             }
 
             // Get audit details
+            error_log("Fetching audit details for UUID: " . $uuid);
             $audit = $this->audit->getByUuid($uuid);
+            error_log("Audit data: " . json_encode($audit));
             if (!$audit) {
                 http_response_code(404);
                 echo json_encode(['error' => 'Audit not found']);
@@ -296,7 +301,9 @@ class AuditController {
             }
 
             // Get user details
+            error_log("Fetching user details for ID: " . $data['userId']);
             $user = $this->user->getById($data['userId']);
+            error_log("User data: " . json_encode($user));
             if (!$user) {
                 http_response_code(404);
                 echo json_encode(['error' => 'User not found']);
@@ -304,43 +311,34 @@ class AuditController {
             }
 
             // Get user's access code for this audit
+            error_log("Fetching access code for audit ID: " . $audit['id'] . " and user ID: " . $user['id']);
             $accessCode = $this->audit->getUserAccessCode($audit['id'], $user['id']);
+            error_log("Access code: " . ($accessCode ?: 'null'));
             if (!$accessCode) {
                 http_response_code(400);
                 echo json_encode(['error' => 'User does not have access to this audit']);
                 return;
             }
 
-            // Prepare email content based on type
-            switch ($data['type']) {
-                case 'notification':
-                    $subject = "Pozvánka k auditu: {$audit['company_name']}";
-                    $htmlBody = "
-                        <h2>Pozvánka k auditu</h2>
-                        <p>Dobrý den {$user['name']},</p>
-                        <p>byl(a) jste pozván(a) k účasti na auditu společnosti {$audit['company_name']}.</p>
-                        <p><strong>Váš přístupový kód:</strong> {$accessCode}</p>
-                        <p><strong>Popis auditu:</strong> {$audit['description']}</p>
-                        <p>Pro přístup k auditu použijte tento odkaz:</p>
-                        <p><a href='" . getenv('FRONTEND_URL') . "/audit/{$audit['uuid']}?code={$accessCode}'>" . getenv('FRONTEND_URL') . "/audit/{$audit['uuid']}?code={$accessCode}</a></p>
-                        <p>S pozdravem,<br>AuditBot</p>
-                    ";
-                    break;
-                    
-                default:
-                    http_response_code(400);
-                    echo json_encode(['error' => 'Invalid notification type']);
-                    return;
-            }
+            // Prepare template data
+            $templateModel = [
+                "action_url" => getenv('FRONTEND_URL') . "/audit/{$audit['uuid']}?code={$accessCode}",
+                "company" => $audit['organization_name']
+            ];
+            error_log("Template model prepared: " . json_encode($templateModel));
 
-            // Send email
-            $result = $this->postmark->sendEmail(
-                $user['username'], // username is used as email in your system
-                $subject,
-                $htmlBody
+            // Send email using template
+            error_log("Sending template email to: " . $user['email']);
+            $result = $this->postmark->sendTemplate(
+                $user['email'],
+                'audit-invitation',  // Using template alias instead of ID
+                $templateModel,
+                "Pozvánka k auditu: " . $audit['organization_name']
             );
+            error_log("Postmark result: " . json_encode($result));
 
             if (!$result['success']) {
+                error_log("Failed to send Postmark template email. Error: " . json_encode($result));
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to send email', 'details' => $result['error']]);
                 return;
@@ -352,9 +350,13 @@ class AuditController {
             ]);
 
         } catch (Exception $e) {
-            error_log("Error in AuditController@mail: " . $e->getMessage());
+            error_log("Error in AuditController@mail: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['error' => 'Internal server error']);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 }

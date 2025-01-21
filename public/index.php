@@ -1,4 +1,16 @@
 <?php
+// Development error handling
+if (getenv('APP_ENV') === 'local' || getenv('APP_ENV') === 'development') {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+}
+
+// Set error handler
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+});
+
 require_once __DIR__ . '/../src/utils/Env.php';
 
 // Load environment variables
@@ -24,6 +36,7 @@ require_once __DIR__ . '/../src/controllers/MessageController.php';
 require_once __DIR__ . '/../src/controllers/AuthController.php';
 require_once __DIR__ . '/../src/controllers/UserController.php';
 require_once __DIR__ . '/../src/controllers/AnalyzeController.php';
+require_once __DIR__ . '/../src/controllers/OrganizationController.php';
 require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 
 $router = new Router();
@@ -37,6 +50,10 @@ function registerRoutes($router) {
 
     // User routes
     $router->get('/users', 'UserController@list');
+    $router->post('/users', 'UserController@create');
+
+    // Organization routes
+    $router->get('/organizations', 'OrganizationController@list');
 
     // Audit routes
     $router->get('/audits', 'AuditController@list');
