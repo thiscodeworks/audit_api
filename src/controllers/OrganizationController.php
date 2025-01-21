@@ -12,22 +12,10 @@ class OrganizationController {
     }
 
     public function list() {
-        $headers = getallheaders();
-        $token = isset($headers['Authorization']) ? str_replace('Bearer ', '', $headers['Authorization']) : null;
+        $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+        $token = str_replace('Bearer ', '', $headers['AUTHORIZATION']);
+        $decoded = $this->jwt->decodeToken($token); // Just decode without validation since middleware already validated
         
-        if (!$token) {
-            http_response_code(401);
-            echo json_encode(['error' => 'No authorization token provided']);
-            return;
-        }
-
-        $decoded = $this->jwt->validateToken($token);
-        if (!$decoded) {
-            http_response_code(401);
-            echo json_encode(['error' => 'Invalid or expired token']);
-            return;
-        }
-
         // Get organizations for user
         $organizations = Organization::getForUser($decoded->data->id);
         
