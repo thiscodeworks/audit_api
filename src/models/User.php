@@ -40,6 +40,7 @@ class User {
                     u.username,
                     u.name,
                     u.email,
+                    u.position,
                     u.created_at,
                     u.updated_at,
                     up.permission,

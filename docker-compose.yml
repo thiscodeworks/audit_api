@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   web:
-    container_name: auditbot
+    container_name: api-auditbot
+    image: api-auditbot
     build: .
     ports:
       - "${API_PORT}:80"

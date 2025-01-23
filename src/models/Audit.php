@@ -20,15 +20,16 @@ class Audit {
                 SELECT 
                     a.id,
                     a.uuid,
+                    a.audit_name,
                     a.company_name,
                     a.employee_count_limit,
                     a.description,
                     a.ai_system,
                     a.type,
+                    a.status,
                     a.created_at,
                     a.updated_at,
-                    u.name as creator_name,
-                    a.company_name as creator_company,
+                    o.name as organization_name,
                     COUNT(DISTINCT c.id) as total_chats,
                     COUNT(DISTINCT m.id) as total_messages,
                     CASE 
@@ -48,8 +49,8 @@ class Audit {
                         ELSE COUNT(DISTINCT c.user)
                     END as total_active_users
                 FROM audits a
+                LEFT JOIN organizations o ON o.id = a.organization
                 LEFT JOIN chats c ON c.audit_uuid = a.uuid
-                LEFT JOIN users u ON u.id = c.user
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid";
 
             // Add organization filter if user has an organization

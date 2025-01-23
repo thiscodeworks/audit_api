@@ -106,15 +106,14 @@ class AuditController {
                 $baseAudit = [
                     'id' => $audit['id'],
                     'uuid' => $audit['uuid'],
+                    'audit_name' => $audit['audit_name'],
                     'type' => $audit['type'],
                     'company_name' => $audit['company_name'],
                     'employee_count_limit' => (int)$audit['employee_count_limit'],
                     'description' => $audit['description'],
                     'ai_system' => $audit['ai_system'],
-                    'creator' => [
-                        'name' => $audit['creator_name'],
-                        'company' => $audit['creator_company']
-                    ],
+                    'organization_name' => $audit['organization_name'],
+                    'status' => $audit['status'],
                     'stats' => [
                         'total_chats' => (int)$audit['total_chats'],
                         'total_messages' => (int)$audit['total_messages'],
