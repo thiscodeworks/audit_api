@@ -82,11 +82,13 @@ class User {
                     u.created_at,
                     u.updated_at,
                     up.permission,
-                    o.name as organization_name
+                    o.name as organization_name,
+                    ua.blocked
                 FROM users u
                 LEFT JOIN users_permission up ON up.user = u.id
                 LEFT JOIN users_organization uo ON uo.user = u.id
                 LEFT JOIN organizations o ON o.id = uo.organization
+                LEFT JOIN users_audit ua ON ua.user = u.id
                 WHERE u.id = ?
                 LIMIT 1
             ");

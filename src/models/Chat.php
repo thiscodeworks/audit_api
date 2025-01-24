@@ -49,9 +49,12 @@ class Chat {
                    m.content as message_content,
                    m.role as message_role,
                    m.created_at as message_created_at,
-                   m.is_hidden as message_is_hidden
+                   m.is_hidden as message_is_hidden,
+                   ua.blocked as blocked
             FROM chats c
             LEFT JOIN messages m ON c.uuid = m.chat_uuid
+            LEFT JOIN audits a ON c.audit_uuid = a.uuid
+            LEFT JOIN users_audit ua ON (ua.audit = a.id AND ua.user = c.user)
             WHERE c.uuid = ?
             ORDER BY m.created_at ASC
         ");
@@ -70,6 +73,7 @@ class Chat {
             'user' => $results[0]['user'],
             'created_at' => $results[0]['created_at'],
             'updated_at' => $results[0]['updated_at'],
+            'blocked' => (bool)$results[0]['blocked'],
             'messages' => []
         ];
 
