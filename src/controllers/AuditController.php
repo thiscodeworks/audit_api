@@ -331,20 +331,37 @@ class AuditController {
                 return;
             }
 
-            // Prepare template data
+            // Prepare base template data
             $templateModel = [
                 "action_url" => getenv('FRONTEND_URL') . "/audit/{$audit['uuid']}?code={$accessCode}",
                 "company" => $audit['organization_name']
             ];
+
+            // Set template alias and additional data based on type
+            if ($data['type'] === 'invitation') {
+                $templateAlias = 'user-invitation';
+                $emailSubject = "Pozvánka k auditu: " . $audit['organization_name'];
+            } else if ($data['type'] === 'push') {
+                $templateAlias = 'user-push';
+                $emailSubject = "Připomenutí auditu: " . $audit['organization_name'];
+                // Add completed_count for push template
+                $templateModel['completed_count'] = (int)$audit['total_active_users'];
+            } else {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid template type']);
+                return;
+            }
+
             error_log("Template model prepared: " . json_encode($templateModel));
+            error_log("Using template alias: " . $templateAlias);
 
             // Send email using template
             error_log("Sending template email to: " . $user['email']);
             $result = $this->postmark->sendTemplate(
                 $user['email'],
-                'user-invitation',  // Using template alias instead of ID
+                $templateAlias,
                 $templateModel,
-                "Pozvánka k auditu: " . $audit['organization_name']
+                $emailSubject
             );
             error_log("Postmark result: " . json_encode($result));
 
