@@ -373,6 +373,10 @@ class AuditController {
                 return;
             }
 
+            // Update user's email status in users_audit table
+            error_log("Updating user email status for audit ID: " . $audit['id'] . " and user ID: " . $user['id']);
+            $this->audit->updateUserEmailStatus($audit['id'], $user['id'], $data['type']);
+
             echo json_encode([
                 'success' => true,
                 'message' => 'Email notification sent successfully'

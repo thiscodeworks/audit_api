@@ -521,4 +521,21 @@ class Audit {
             throw new Exception("Error assigning user: " . $e->getMessage());
         }
     }
+
+    public function updateUserEmailStatus($auditId, $userId, $type) {
+        try {
+            $field = $type === 'invitation' ? 'invite' : 'push';
+            
+            $stmt = $this->db->prepare("
+                UPDATE users_audit 
+                SET {$field} = 1 
+                WHERE audit = ? AND user = ?
+            ");
+            
+            return $stmt->execute([$auditId, $userId]);
+        } catch (PDOException $e) {
+            error_log("Error updating user email status: " . $e->getMessage());
+            throw new Exception("Error updating user email status");
+        }
+    }
 }
