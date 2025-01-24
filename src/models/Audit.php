@@ -342,7 +342,7 @@ class Audit {
 
             // Check if code exists and is valid for this audit
             $stmt = $this->db->prepare("
-                SELECT id, user
+                SELECT id, user, blocked
                 FROM users_audit 
                 WHERE audit = ? AND code = ?
             ");
@@ -364,7 +364,8 @@ class Audit {
             return [
                 'valid' => true, 
                 'audit' => $audit,
-                'user_id' => $userAudit['user']
+                'user_id' => $userAudit['user'],
+                'blocked' => $userAudit['blocked']
             ];
         } catch (PDOException $e) {
             throw new Exception("Error validating audit access: " . $e->getMessage());

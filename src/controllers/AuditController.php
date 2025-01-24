@@ -70,6 +70,7 @@ class AuditController {
                 return;
             }
 
+            $audit['blocked'] = $validation['blocked'];
             // Set auth type based on validation
             $audit["auth_type"] = $audit['type'] === 'assign' ? 'code' : 'public';
 
