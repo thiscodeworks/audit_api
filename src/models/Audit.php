@@ -61,7 +61,7 @@ class Audit {
             $sql .= " GROUP BY a.id ORDER BY a.created_at DESC";
 
             $stmt = $this->db->prepare($sql);
-            
+
             if ($userOrg) {
                 $stmt->execute([$userOrg]);
             } else {

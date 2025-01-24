@@ -157,15 +157,23 @@ class AuditController {
             $totalAssigned = $isAssignType ? (int)$stats['total_assigned_users'] : (int)$stats['total_active_users'];
             $totalFilled = (int)$stats['total_active_users'];
             
+            // Parse audit_data JSON field
+            $auditData = json_decode($stats['audit_data'] ?? '{}', true) ?: [];
+            
             echo json_encode([
                 'data' => [
                     'type' => $stats['type'],
+                    'status' => $stats['status'],
                     'total_users' => $totalAssigned,
                     'total_filled' => $totalFilled,
                     'percentage_filled' => $totalAssigned > 0 ? round(($totalFilled / $totalAssigned) * 100) : 0,
                     'total_chats' => (int)$stats['total_chats'],
                     'total_messages' => (int)$stats['total_messages'],
-                    'sentiment_distribution' => $stats['sentiment']
+                    'sentiment_distribution' => $stats['sentiment'],
+                    'summary' => $auditData['summary'] ?? '',
+                    'key_findings' => $auditData['key_findings'] ?? '',
+                    'recommendations' => $auditData['recommendations'] ?? [],
+                    'tags' => $auditData['tags'] ?? []
                 ]
             ]);
         } catch (Exception $e) {
