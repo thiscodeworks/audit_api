@@ -230,7 +230,8 @@ class AuditController {
                         'messages' => (int)$chat['message_count'],
                         'goal_fulfill' => $chat['goal_fulfill']
                     ],
-                    'created_at' => $chat['created_at']
+                    'created_at' => $chat['created_at'],
+                    'last_message_at' => $chat['last_message_at']
                 ];
             }, $chats);
 

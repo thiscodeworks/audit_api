@@ -274,7 +274,12 @@ class Audit {
                     c.uuid as chat_uuid,
                     u.name as username,
                     COUNT(m.id) as message_count,
-                    c.created_at
+                    c.created_at,
+                    (SELECT created_at 
+                     FROM messages 
+                     WHERE chat_uuid = c.uuid 
+                     ORDER BY created_at DESC 
+                     LIMIT 1) as last_message_at
                 FROM audits a
                 JOIN chats c ON c.audit_uuid = a.uuid
                 LEFT JOIN users u ON u.id = c.user
