@@ -40,56 +40,49 @@ class Chat {
     }
     
     public function getByUuid($uuid) {
-        $uuid = is_array($uuid) ? $uuid['uuid'] : $uuid;
-        
-        // Get chat info
-        $stmt = $this->db->prepare("
-            SELECT c.*, 
-                   m.uuid as message_uuid,
-                   m.content as message_content,
-                   m.role as message_role,
-                   m.created_at as message_created_at,
-                   m.is_hidden as message_is_hidden,
-                   ua.blocked as blocked
-            FROM chats c
-            LEFT JOIN messages m ON c.uuid = m.chat_uuid
-            LEFT JOIN audits a ON c.audit_uuid = a.uuid
-            LEFT JOIN users_audit ua ON (ua.audit = a.id AND ua.user = c.user)
-            WHERE c.uuid = ?
-            ORDER BY m.created_at ASC
-        ");
-        
-        $stmt->execute([$uuid]);
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        if (empty($results)) {
-            return null;
-        }
-
-        // Format the response
-        $chat = [
-            'uuid' => $results[0]['uuid'],
-            'audit_uuid' => $results[0]['audit_uuid'],
-            'user' => $results[0]['user'],
-            'created_at' => $results[0]['created_at'],
-            'updated_at' => $results[0]['updated_at'],
-            'blocked' => (bool)$results[0]['blocked'],
-            'messages' => []
-        ];
-
-        // Add messages if they exist
-        foreach ($results as $row) {
-            if ($row['message_uuid'] && !$row['message_is_hidden']) {
-                $chat['messages'][] = [
-                    'uuid' => $row['message_uuid'],
-                    'content' => $row['message_content'],
-                    'role' => $row['message_role'],
-                    'created_at' => $row['message_created_at']
-                ];
+        try {
+            error_log("Chat::getByUuid - Starting query for UUID: " . $uuid);
+            
+            $stmt = $this->db->prepare("
+                SELECT 
+                    c.id,
+                    c.uuid,
+                    c.audit_uuid,
+                    c.user,
+                    c.created_at,
+                    c.updated_at,
+                    c.state,
+                    COALESCE(u.name, '') as username,
+                    COALESCE(u.email, '') as user_email,
+                    COALESCE(a.company_name, '') as company_name
+                FROM chats c
+                LEFT JOIN users u ON c.user = u.id
+                LEFT JOIN audits a ON c.audit_uuid = a.uuid
+                WHERE c.uuid = ?
+            ");
+            
+            if (!$stmt->execute([$uuid])) {
+                $error = $stmt->errorInfo();
+                error_log("Chat::getByUuid - Execute failed: " . json_encode($error));
+                throw new Exception("Failed to execute query: " . $error[2]);
             }
+            
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            error_log("Chat::getByUuid - Query result: " . json_encode($result));
+            
+            if (!$result) {
+                error_log("Chat::getByUuid - No chat found for UUID: " . $uuid);
+                return null;
+            }
+            
+            return $result;
+        } catch (PDOException $e) {
+            error_log("Chat::getByUuid - PDO Error: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+            throw new Exception("Database error while fetching chat: " . $e->getMessage());
+        } catch (Exception $e) {
+            error_log("Chat::getByUuid - General Error: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+            throw $e;
         }
-
-        return $chat;
     }
 
     public function create($auditUuid, $userId = null) {

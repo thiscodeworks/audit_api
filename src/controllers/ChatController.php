@@ -20,21 +20,46 @@ class ChatController {
         }
     }
 
-    public function get($uuid) {
+    public function get($params) {
         try {
-            $chat = new Chat();
-            $chatData = ["data"=>$chat->getByUuid($uuid)];
+            $uuid = $params['uuid'];
+            error_log("Attempting to get chat with UUID: " . $uuid);
+            
+            $chatData = $this->chat->getByUuid($uuid);
+            error_log("Raw chat data: " . json_encode($chatData));
             
             if (!$chatData) {
+                error_log("Chat not found for UUID: " . $uuid);
                 http_response_code(404);
                 echo json_encode(['error' => 'Chat not found']);
                 return;
             }
 
-            echo json_encode($chatData);
+            // Format the response
+            $response = [
+                "data" => [
+                    "uuid" => $chatData['uuid'],
+                    "audit_uuid" => $chatData['audit_uuid'],
+                    "user" => $chatData['user'],
+                    "username" => $chatData['username'],
+                    "user_email" => $chatData['user_email'],
+                    "company_name" => $chatData['company_name'],
+                    "created_at" => $chatData['created_at'],
+                    "updated_at" => $chatData['updated_at'],
+                    "state" => $chatData['state']
+                ]
+            ];
+            
+            error_log("Sending response: " . json_encode($response));
+            echo json_encode($response);
         } catch (Exception $e) {
+            error_log("Error in ChatController@get: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['error' => 'Internal server error']);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'details' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 }

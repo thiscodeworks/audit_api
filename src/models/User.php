@@ -149,4 +149,30 @@ class User {
             throw new Exception("Error creating user: " . $e->getMessage());
         }
     }
+
+    public function createPublicUser($email, $name, $position) {
+        try {
+            $this->db->beginTransaction();
+
+            // Insert into users table
+            $stmt = $this->db->prepare("
+                INSERT INTO users (name, email, position, created_at, updated_at)
+                VALUES (:name, :email, :position, NOW(), NOW())
+            ");
+
+            $stmt->execute([
+                'name' => $name,
+                'email' => $email,
+                'position' => $position
+            ]);
+
+            $userId = $this->db->lastInsertId();
+            $this->db->commit();
+            return $userId;
+
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            throw new Exception("Error creating public user: " . $e->getMessage());
+        }
+    }
 } 

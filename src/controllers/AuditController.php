@@ -26,23 +26,93 @@ class AuditController {
             $data = json_decode(file_get_contents('php://input'), true);
             $code = $data['code'] ?? null;
             
+            error_log("Starting audit with UUID: " . $uuid . ", request data: " . json_encode($data));
+            
             // Validate the audit access
             $validation = $this->audit->validateAuditAccess($uuid, $code);
+            error_log("Audit access validation result: " . json_encode($validation));
+            
             if (!$validation['valid']) {
                 http_response_code(401);
                 echo json_encode(['error' => $validation['error']]);
                 return;
             }
 
-            // Create new chat with user ID if this is an assigned audit
+            // Get or create user ID based on audit type
             $userId = $validation['user_id'] ?? null;
-            $chatUuid = $this->chat->create($uuid, $userId);
+            error_log("Initial user ID from validation: " . ($userId ?? 'null'));
             
-            echo json_encode(['data' => ['uuid' => $chatUuid]]);
+            // For public audits, create a new user if email is provided
+            if (!$userId && isset($validation['audit']) && $validation['audit']['type'] === 'public') {
+                $email = $data['email'] ?? null;
+                $name = $data['name'] ?? $email; // Use email as name if name is not provided
+                $position = $data['position'] ?? null;
+
+                if (!$email) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Email is required for public audits']);
+                    return;
+                }
+
+                try {
+                    error_log("Creating new public user with email: " . $email . ", name: " . $name);
+                    // Create new user and get their ID
+                    $userId = $this->user->createPublicUser($email, $name, $position);
+                    error_log("Created new user with ID: " . $userId);
+
+                    // Verify user was created
+                    $createdUser = $this->user->getById($userId);
+                    error_log("Verified created user: " . json_encode($createdUser));
+                } catch (Exception $e) {
+                    error_log("Failed to create user: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+                    http_response_code(500);
+                    echo json_encode([
+                        'error' => 'Failed to create user',
+                        'details' => $e->getMessage(),
+                        'data' => [
+                            'email' => $email,
+                            'name' => $name,
+                            'position' => $position
+                        ]
+                    ]);
+                    return;
+                }
+            }
+
+            try {
+                error_log("Creating chat for audit UUID: " . $uuid . " and user ID: " . ($userId ?? 'null'));
+                // Create new chat with user ID
+                $chatUuid = $this->chat->create($uuid, $userId);
+                error_log("Created chat with UUID: " . $chatUuid);
+
+                // Verify chat was created with correct user
+                $createdChat = $this->chat->getByUuid($chatUuid);
+                error_log("Verified created chat: " . json_encode($createdChat));
+
+                echo json_encode(['data' => ['uuid' => $chatUuid]]);
+            } catch (Exception $e) {
+                error_log("Failed to create chat: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+                http_response_code(500);
+                echo json_encode([
+                    'error' => 'Failed to create chat',
+                    'details' => $e->getMessage(),
+                    'data' => [
+                        'audit_uuid' => $uuid,
+                        'user_id' => $userId
+                    ]
+                ]);
+                return;
+            }
         } catch (Exception $e) {
-            error_log("Error in AuditController@start: " . $e->getMessage());
+            error_log("Error in AuditController@start: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['error' => 'Internal server error']);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'validation' => $validation ?? null,
+                'request_data' => $data ?? null
+            ]);
         }
     }
     
