@@ -4,18 +4,21 @@ require_once __DIR__ . '/../models/Audit.php';
 require_once __DIR__ . '/../models/Chat.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../services/PostmarkService.php';
+require_once __DIR__ . '/../services/GoogleChatService.php';
 
 class AuditController {
     private $audit;
     private $chat;
     private $user;
     private $postmark;
+    private $googleChat;
 
     public function __construct() {
         $this->audit = new Audit();
         $this->chat = new Chat();
         $this->user = new User();
         $this->postmark = new PostmarkService();
+        $this->googleChat = new GoogleChatService();
     }
 
     public function start($params) {
@@ -88,6 +91,20 @@ class AuditController {
                 // Verify chat was created with correct user
                 $createdChat = $this->chat->getByUuid($chatUuid);
                 error_log("Verified created chat: " . json_encode($createdChat));
+
+                // Get user and audit details for Google Chat notification
+                $user = $this->user->getById($userId);
+                $auditDetails = $this->audit->getByUuid($uuid);
+
+                // Send notification to Google Chat
+                if ($user && $auditDetails) {
+                    $this->googleChat->sendAuditStartNotification(
+                        $auditDetails['audit_name'],
+                        $auditDetails['organization_name'],
+                        $user['name'],
+                        $user['email']
+                    );
+                }
 
                 echo json_encode(['data' => ['uuid' => $chatUuid]]);
             } catch (Exception $e) {
