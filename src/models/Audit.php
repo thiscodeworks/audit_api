@@ -252,9 +252,9 @@ class Audit {
             $stmt = $this->db->prepare($sql);
             
             if ($userOrg) {
-                $stmt->execute([$uuid, $userOrg, $uuid, $uuid]);
+                $stmt->execute([$uuid, $userOrg, $uuid]);
             } else {
-                $stmt->execute([$uuid, $uuid, $uuid]);
+                $stmt->execute([$uuid, $uuid]);
             }
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -291,7 +291,9 @@ class Audit {
                 $sql .= " AND a.organization = ?";
             }
 
-            $sql .= " GROUP BY c.id ORDER BY c.created_at DESC";
+            $sql .= " GROUP BY c.id, c.uuid, u.name, c.created_at
+                     HAVING SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) > 0
+                     ORDER BY c.created_at DESC";
 
             $stmt = $this->db->prepare($sql);
             

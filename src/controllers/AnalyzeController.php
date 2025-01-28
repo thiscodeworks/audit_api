@@ -135,4 +135,30 @@ class AnalyzeController {
             ]);
         }
     }
+
+    public function getDashboardStats() {
+        try {
+            $result = $this->analysisService->getDashboardStats();
+            
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true,
+                    'data' => $result['data']
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => $result['error']
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log("Error in AnalyzeController@getDashboardStats: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Internal server error'
+            ]);
+        }
+    }
 } 

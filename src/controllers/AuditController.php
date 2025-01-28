@@ -70,7 +70,8 @@ class AuditController {
                 return;
             }
 
-            $audit['blocked'] = $validation['blocked'];
+            // Set blocked status with a default value of false if not present
+            $audit['blocked'] = $validation['blocked'] ?? false;
             // Set auth type based on validation
             $audit["auth_type"] = $audit['type'] === 'assign' ? 'code' : 'public';
 
@@ -90,9 +91,13 @@ class AuditController {
 
             echo json_encode(["data" => $audit]);
         } catch (Exception $e) {
-            error_log("Error in AuditController@get: " . $e->getMessage());
+            error_log("Error in AuditController@get: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['error' => 'Internal server error']);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 

@@ -239,4 +239,149 @@ Respond ONLY with the JSON object, no additional text.";
             ];
         }
     }
+
+    public function getDashboardStats() {
+        try {
+            $db = Database::getInstance();
+            
+            // Get current user's ID from JWT token
+            $headers = getallheaders();
+            $token = $headers['Authorization'] ?? null;
+            if (!$token) {
+                throw new Exception('Authorization header missing');
+            }
+            
+            // Remove 'Bearer ' prefix
+            $token = str_replace('Bearer ', '', $token);
+            
+            // Decode JWT token
+            $tokenParts = explode('.', $token);
+            if (count($tokenParts) != 3) {
+                throw new Exception('Invalid token format');
+            }
+            
+            // Get payload
+            $payload = json_decode(base64_decode($tokenParts[1]), true);
+            if (!$payload || !isset($payload['data']['id'])) {
+                throw new Exception('Invalid token payload');
+            }
+            
+            $userId = $payload['data']['id'];
+            
+            // Verify user exists
+            $userQuery = "SELECT id FROM users WHERE id = ?";
+            $userStmt = $db->prepare($userQuery);
+            $userStmt->execute([$userId]);
+            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                throw new Exception('User not found');
+            }
+
+            // Get user's organizations
+            $orgsQuery = "SELECT organization FROM users_organization WHERE user = ?";
+            $orgsStmt = $db->prepare($orgsQuery);
+            $orgsStmt->execute([$userId]);
+            $organizations = $orgsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (empty($organizations)) {
+                throw new Exception('User not associated with any organization');
+            }
+
+            $orgPlaceholders = str_repeat('?,', count($organizations) - 1) . '?';
+            
+            // Get running audits (audits with open chats) for user's organizations
+            $runningAuditsQuery = "SELECT COUNT(DISTINCT a.id) as count 
+                                 FROM audits a 
+                                 JOIN chats c ON a.uuid = c.audit_uuid 
+                                 WHERE c.state = 'open'
+                                 AND a.organization IN ($orgPlaceholders)";
+            $stmt = $db->prepare($runningAuditsQuery);
+            $stmt->execute($organizations);
+            $runningAudits = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+            // Get total assigned users for these organizations
+            $activeUsersQuery = "SELECT COUNT(DISTINCT ua.user) as count 
+                               FROM users_audit ua 
+                               JOIN audits a ON ua.audit = a.id
+                               WHERE a.organization IN ($orgPlaceholders)";
+            $stmt = $db->prepare($activeUsersQuery);
+            $stmt->execute($organizations);
+            $activeUsers = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+            // Get engaged users (users who have sent at least one message) for these organizations
+            $engagedUsersQuery = "SELECT COUNT(DISTINCT u.id) as count 
+                                FROM users u 
+                                JOIN chats c ON c.user = u.id 
+                                JOIN messages m ON m.chat_uuid = c.uuid 
+                                JOIN audits a ON c.audit_uuid = a.uuid
+                                WHERE m.role = 'user'
+                                AND a.organization IN ($orgPlaceholders)";
+            $stmt = $db->prepare($engagedUsersQuery);
+            $stmt->execute($organizations);
+            $engagedUsers = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+            // Calculate engagement rate
+            $engagementRate = $activeUsers > 0 ? round(($engagedUsers / $activeUsers) * 100, 2) : 0;
+
+            // Get completed audits (all chats in finished state) for these organizations
+            $completedAuditsQuery = "SELECT COUNT(DISTINCT a.id) as count 
+                                   FROM audits a 
+                                   JOIN chats c ON a.uuid = c.audit_uuid 
+                                   WHERE c.state = 'finished'
+                                   AND a.organization IN ($orgPlaceholders)";
+            $stmt = $db->prepare($completedAuditsQuery);
+            $stmt->execute($organizations);
+            $completedAudits = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+            // Get messages per day for last 14 days for these organizations
+            $messagesQuery = "SELECT DATE(m.created_at) as date, COUNT(*) as count 
+                            FROM messages m
+                            JOIN chats c ON m.chat_uuid = c.uuid
+                            JOIN audits a ON c.audit_uuid = a.uuid
+                            WHERE m.role = 'user' 
+                            AND m.created_at >= DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY)
+                            AND a.organization IN ($orgPlaceholders)
+                            GROUP BY DATE(m.created_at) 
+                            ORDER BY date";
+            $stmt = $db->prepare($messagesQuery);
+            $stmt->execute($organizations);
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get completed audits per day for last 14 days for these organizations
+            $auditsCompletedQuery = "SELECT DATE(c.updated_at) as date, COUNT(DISTINCT a.id) as count 
+                                   FROM chats c
+                                   JOIN audits a ON c.audit_uuid = a.uuid
+                                   WHERE c.state = 'finished' 
+                                   AND c.updated_at >= DATE_SUB(CURRENT_DATE, INTERVAL 14 DAY)
+                                   AND a.organization IN ($orgPlaceholders)
+                                   GROUP BY DATE(c.updated_at) 
+                                   ORDER BY date";
+            $stmt = $db->prepare($auditsCompletedQuery);
+            $stmt->execute($organizations);
+            $auditsCompleted = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            return [
+                'success' => true,
+                'data' => [
+                    'summary' => [
+                        'running_audits' => $runningAudits,
+                        'active_users' => $activeUsers,
+                        'engagement_rate' => $engagementRate,
+                        'completed_audits' => $completedAudits
+                    ],
+                    'charts' => [
+                        'messages_per_day' => $messages,
+                        'audits_completed_per_day' => $auditsCompleted
+                    ]
+                ]
+            ];
+        } catch (Exception $e) {
+            error_log("Error getting dashboard stats: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
 } 
