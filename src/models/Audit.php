@@ -252,9 +252,9 @@ class Audit {
             $stmt = $this->db->prepare($sql);
             
             if ($userOrg) {
-                $stmt->execute([$uuid, $userOrg, $uuid]);
+                $stmt->execute([$uuid, $userOrg, $uuid, $uuid]);
             } else {
-                $stmt->execute([$uuid, $uuid]);
+                $stmt->execute([$uuid, $uuid, $uuid]);
             }
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
