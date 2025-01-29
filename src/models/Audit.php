@@ -3,6 +3,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once __DIR__ . '/../utils/JWTHandler.php';
+
 class Audit {
     private $db;
 
@@ -12,9 +14,17 @@ class Audit {
 
     public function getAll() {
         try {
-            // Get current user's organization
-            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
-            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+            // Get current user's organization from JWT
+            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+            $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
+            
+            if ($token) {
+                $jwt = new JWTHandler();
+                $decoded = $jwt->validateToken($token);
+                $userOrg = $decoded ? $this->getUserOrganization($decoded->data->id) : null;
+            } else {
+                $userOrg = null;
+            }
 
             $sql = "
                 SELECT 
@@ -122,9 +132,17 @@ class Audit {
 
     public function getStats($uuid) {
         try {
-            // Get current user's organization
-            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
-            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+            // Get current user's organization from JWT
+            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+            $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
+            
+            if ($token) {
+                $jwt = new JWTHandler();
+                $decoded = $jwt->validateToken($token);
+                $userOrg = $decoded ? $this->getUserOrganization($decoded->data->id) : null;
+            } else {
+                $userOrg = null;
+            }
 
             $sql = "
                 SELECT 
@@ -186,9 +204,17 @@ class Audit {
 
     public function getUsers($uuid) {
         try {
-            // Get current user's organization
-            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
-            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+            // Get current user's organization from JWT
+            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+            $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
+            
+            if ($token) {
+                $jwt = new JWTHandler();
+                $decoded = $jwt->validateToken($token);
+                $userOrg = $decoded ? $this->getUserOrganization($decoded->data->id) : null;
+            } else {
+                $userOrg = null;
+            }
 
             $sql = "
                 WITH audit_data AS (

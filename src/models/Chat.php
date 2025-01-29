@@ -11,6 +11,8 @@ class Chat {
         $stmt = $this->db->prepare("
             SELECT c.*,
                    a.company_name,
+                   u.name as user_name,
+                   u.email as user_email,
                    (SELECT COUNT(*) FROM messages m WHERE m.chat_uuid = c.uuid AND m.is_hidden = 0) as message_count,
                    (SELECT created_at 
                     FROM messages 
@@ -19,6 +21,7 @@ class Chat {
                     LIMIT 1) as last_message_at
             FROM chats c
             LEFT JOIN audits a ON c.audit_uuid = a.uuid
+            LEFT JOIN users u ON c.user = u.id
             ORDER BY c.created_at DESC
         ");
         
@@ -31,6 +34,10 @@ class Chat {
                 'uuid' => $chat['uuid'],
                 'audit_uuid' => $chat['audit_uuid'],
                 'company_name' => $chat['company_name'],
+                'user' => [
+                    'name' => $chat['user_name'] ?? null,
+                    'email' => $chat['user_email'] ?? null
+                ],
                 'message_count' => (int)$chat['message_count'],
                 'last_message_at' => $chat['last_message_at'],
                 'created_at' => $chat['created_at'],

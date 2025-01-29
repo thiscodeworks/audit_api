@@ -119,16 +119,18 @@ class User {
 
             $userId = $this->db->lastInsertId();
 
-            // Insert into users_organization table
+            // Insert into users_organization table for each organization
             $stmt = $this->db->prepare("
                 INSERT INTO users_organization (user, organization)
                 VALUES (:user, :organization)
             ");
 
-            $stmt->execute([
-                'user' => $userId,
-                'organization' => $data['organization']
-            ]);
+            foreach ($data['organizations'] as $organizationId) {
+                $stmt->execute([
+                    'user' => $userId,
+                    'organization' => $organizationId
+                ]);
+            }
 
             // Insert into users_permission table
             $stmt = $this->db->prepare("
