@@ -103,7 +103,7 @@ class Analysis {
                     c.created_at as chat_created_at,
                     c.updated_at as chat_updated_at,
                     u.id as user_id,
-                    u.username
+                    u.email as username
                 FROM chats c
                 LEFT JOIN users u ON u.id = c.user
                 WHERE c.uuid = :uuid
