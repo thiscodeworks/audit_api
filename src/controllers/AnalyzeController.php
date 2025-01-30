@@ -12,7 +12,7 @@ class AnalyzeController {
     public function analyzeChat($uuid) {
         try {
             // Run the analysis for a single chat
-            $result = $this->analysisService->analyzeSingleChat($uuid);
+            $result = $this->analysisService->analyzeSingleChat($uuid["uuid"]);
             
             if ($result['success']) {
                 echo json_encode([

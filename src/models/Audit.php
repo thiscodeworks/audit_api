@@ -15,16 +15,7 @@ class Audit {
     public function getAll() {
         try {
             // Get current user's organization from JWT
-            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
-            $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
-            
-            if ($token) {
-                $jwt = new JWTHandler();
-                $decoded = $jwt->validateToken($token);
-                $userOrg = $decoded ? $this->getUserOrganization($decoded->data->id) : null;
-            } else {
-                $userOrg = null;
-            }
+            $userOrg = $this->getCurrentUserOrganization();
 
             $sql = "
                 SELECT 
@@ -133,16 +124,7 @@ class Audit {
     public function getStats($uuid) {
         try {
             // Get current user's organization from JWT
-            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
-            $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
-            
-            if ($token) {
-                $jwt = new JWTHandler();
-                $decoded = $jwt->validateToken($token);
-                $userOrg = $decoded ? $this->getUserOrganization($decoded->data->id) : null;
-            } else {
-                $userOrg = null;
-            }
+            $userOrg = $this->getCurrentUserOrganization();
 
             $sql = "
                 SELECT 
@@ -205,16 +187,7 @@ class Audit {
     public function getUsers($uuid) {
         try {
             // Get current user's organization from JWT
-            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
-            $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
-            
-            if ($token) {
-                $jwt = new JWTHandler();
-                $decoded = $jwt->validateToken($token);
-                $userOrg = $decoded ? $this->getUserOrganization($decoded->data->id) : null;
-            } else {
-                $userOrg = null;
-            }
+            $userOrg = $this->getCurrentUserOrganization();
 
             $sql = "
                 WITH audit_data AS (
@@ -278,9 +251,9 @@ class Audit {
             $stmt = $this->db->prepare($sql);
             
             if ($userOrg) {
-                $stmt->execute([$uuid, $userOrg, $uuid, $uuid]);
+                $stmt->execute([$uuid, $userOrg, $uuid]);
             } else {
-                $stmt->execute([$uuid, $uuid, $uuid]);
+                $stmt->execute([$uuid, $uuid]);
             }
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -292,34 +265,58 @@ class Audit {
     public function getChats($uuid) {
         try {
             // Get current user's organization
-            $user = isset($_SESSION['user']) ? $_SESSION['user'] : null;
-            $userOrg = $user ? $this->getUserOrganization($user['id']) : null;
+            $userOrg = $this->getCurrentUserOrganization();
 
             $sql = "
+                WITH user_messages AS (
+                    SELECT 
+                        chat_uuid,
+                        COUNT(*) as user_message_count
+                    FROM messages 
+                    WHERE role = 'user'
+                        AND (is_hidden = 0 OR is_hidden IS NULL)
+                    GROUP BY chat_uuid
+                    HAVING COUNT(*) > 0
+                )
                 SELECT 
+                    c.id,
                     c.uuid as chat_uuid,
                     u.name as username,
-                    COUNT(m.id) as message_count,
+                    COUNT(DISTINCT CASE WHEN (m.is_hidden = 0 OR m.is_hidden IS NULL) THEN m.id ELSE NULL END) as message_count,
                     c.created_at,
-                    (SELECT created_at 
-                     FROM messages 
-                     WHERE chat_uuid = c.uuid 
-                     ORDER BY created_at DESC 
-                     LIMIT 1) as last_message_at
-                FROM audits a
-                JOIN chats c ON c.audit_uuid = a.uuid
+                    c.state,
+                    a.id as analyze_id,
+                    a.sentiment,
+                    a.goal_fulfill,
+                    a.summary,
+                    a.keyfindings,
+                    MAX(CASE WHEN (m.is_hidden = 0 OR m.is_hidden IS NULL) THEN m.created_at ELSE NULL END) as last_message_at
+                FROM audits au
+                JOIN chats c ON c.audit_uuid = au.uuid
                 LEFT JOIN users u ON u.id = c.user
+                -- Join with user messages to ensure at least one user message exists
+                INNER JOIN user_messages um ON um.chat_uuid = c.uuid
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                WHERE a.uuid = ?";
+                LEFT JOIN `analyze` a ON a.chat = c.id
+                WHERE au.uuid = ?";
 
             // Add organization filter if user has an organization
             if ($userOrg) {
-                $sql .= " AND a.organization = ?";
+                $sql .= " AND au.organization = ?";
             }
 
-            $sql .= " GROUP BY c.id, c.uuid, u.name, c.created_at
-                     HAVING SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) > 0
-                     ORDER BY c.created_at DESC";
+            $sql .= " GROUP BY 
+                    c.id, 
+                    c.uuid,
+                    u.name,
+                    c.created_at,
+                    c.state,
+                    a.id,
+                    a.sentiment,
+                    a.goal_fulfill,
+                    a.summary,
+                    a.keyfindings
+                ORDER BY c.created_at DESC";
 
             $stmt = $this->db->prepare($sql);
             
@@ -331,14 +328,30 @@ class Audit {
 
             $chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Add mock data for sentiment and goal fulfillment
+            // Transform sentiment from number to string if analysis exists
             foreach ($chats as &$chat) {
-                $chat['sentiment'] = array_rand(['positive' => 1, 'neutral' => 1, 'negative' => 1]);
-                $chat['goal_fulfill'] = rand(0, 100);
+                if (isset($chat['sentiment']) && $chat['analyze_id']) {
+                    // Convert 0-100 scale to sentiment categories
+                    $sentimentValue = (int)$chat['sentiment'];
+                    if ($sentimentValue >= 70) {
+                        $chat['sentiment'] = 'positive';
+                    } else if ($sentimentValue >= 40) {
+                        $chat['sentiment'] = 'neutral';
+                    } else {
+                        $chat['sentiment'] = 'negative';
+                    }
+                } else {
+                    // If no analysis exists yet, set default values
+                    $chat['sentiment'] = 'neutral';
+                    $chat['goal_fulfill'] = 0;
+                    $chat['summary'] = '';
+                    $chat['keyfindings'] = '';
+                }
             }
 
             return $chats;
         } catch (PDOException $e) {
+            error_log("Error in getChats: " . $e->getMessage() . "\nSQL: " . $sql);
             throw new Exception("Error fetching audit chats: " . $e->getMessage());
         }
     }
@@ -449,6 +462,18 @@ class Audit {
         } catch (PDOException $e) {
             throw new Exception("Error getting user organization: " . $e->getMessage());
         }
+    }
+
+    private function getCurrentUserOrganization() {
+        $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+        $token = isset($headers['AUTHORIZATION']) ? str_replace('Bearer ', '', $headers['AUTHORIZATION']) : null;
+        
+        if ($token) {
+            $jwt = new JWTHandler();
+            $decoded = $jwt->validateToken($token);
+            return $decoded ? $this->getUserOrganization($decoded->data->id) : null;
+        }
+        return null;
     }
 
     public function getAvailableUsers($uuid) {

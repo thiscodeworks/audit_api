@@ -321,10 +321,16 @@ class AuditController {
                     'sentiment' => $chat['sentiment'],
                     'stats' => [
                         'messages' => (int)$chat['message_count'],
-                        'goal_fulfill' => $chat['goal_fulfill']
+                        'goal_fulfill' => (int)$chat['goal_fulfill']
                     ],
                     'created_at' => $chat['created_at'],
-                    'last_message_at' => $chat['last_message_at']
+                    'last_message_at' => $chat['last_message_at'],
+                    'state' => $chat['state'],
+                    'has_analysis' => isset($chat['id']) && isset($chat['analyze_id']),
+                    'analysis' => [
+                        'summary' => $chat['summary'] ?? '',
+                        'keyfindings' => $chat['keyfindings'] ?? ''
+                    ]
                 ];
             }, $chats);
 
@@ -333,6 +339,7 @@ class AuditController {
                 'total' => count($formattedChats)
             ]);
         } catch (Exception $e) {
+            var_dump($e->getMessage());
             error_log("Error in AuditController@chats: " . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => 'Internal server error']);
