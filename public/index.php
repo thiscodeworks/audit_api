@@ -76,7 +76,7 @@ function registerRoutes($router) {
     $router->post('/message/{uuid}/send', 'MessageController@send',false);
 
     // Analysis endpoints
-    $router->post('/analyze/run', 'AnalyzeController@run',false);
+    $router->get('/analyze/run', 'AnalyzeController@run',false);
     $router->post('/analyze/chat/{uuid}', 'AnalyzeController@analyzeChat',false);
     $router->get('/analyze/chat/{uuid}/detail', 'AnalyzeController@getChatDetail');
     $router->get('/analyze/dashboard', 'AnalyzeController@getDashboardStats');
