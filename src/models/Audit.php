@@ -78,7 +78,10 @@ class Audit {
 
     public function getByUuid($uuid) {
         try {
-            $stmt = $this->db->prepare("
+            // Get current user's organizations from JWT
+            $userOrgs = $this->getCurrentUserOrganization();
+
+            $sql = "
                 SELECT 
                     a.*,
                     o.name as organization_name,
@@ -112,10 +115,25 @@ class Audit {
                 LEFT JOIN organizations o ON o.id = a.organization
                 LEFT JOIN chats c ON c.audit_uuid = a.uuid
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                WHERE a.uuid = ?
-                GROUP BY a.id
-            ");
-            $stmt->execute([$uuid]);
+                WHERE a.uuid = ?";
+
+            // Add organizations filter if user has organizations
+            if ($userOrgs && !empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " AND a.organization IN ($placeholders)";
+            }
+
+            $sql .= " GROUP BY a.id";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($userOrgs && !empty($userOrgs)) {
+                $params = array_merge([$uuid], $userOrgs);
+                $stmt->execute($params);
+            } else {
+                $stmt->execute([$uuid]);
+            }
+            
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             throw new Exception("Error fetching audit: " . $e->getMessage());
@@ -124,8 +142,8 @@ class Audit {
 
     public function getStats($uuid) {
         try {
-            // Get current user's organization from JWT
-            $userOrg = $this->getCurrentUserOrganization();
+            // Get current user's organizations from JWT
+            $userOrgs = $this->getCurrentUserOrganization();
 
             $sql = "
                 SELECT 
@@ -153,17 +171,19 @@ class Audit {
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
                 WHERE a.uuid = ?";
 
-            // Add organization filter if user has an organization
-            if ($userOrg) {
-                $sql .= " AND a.organization = ?";
+            // Add organizations filter if user has organizations
+            if ($userOrgs && !empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " AND a.organization IN ($placeholders)";
             }
 
             $sql .= " GROUP BY a.id";
 
             $stmt = $this->db->prepare($sql);
             
-            if ($userOrg) {
-                $stmt->execute([$uuid, $userOrg]);
+            if ($userOrgs && !empty($userOrgs)) {
+                $params = array_merge([$uuid], $userOrgs);
+                $stmt->execute($params);
             } else {
                 $stmt->execute([$uuid]);
             }
@@ -265,8 +285,8 @@ class Audit {
 
     public function getChats($uuid) {
         try {
-            // Get current user's organization
-            $userOrg = $this->getCurrentUserOrganization();
+            // Get current user's organizations
+            $userOrgs = $this->getCurrentUserOrganization();
 
             $sql = "
                 WITH user_messages AS (
@@ -301,9 +321,10 @@ class Audit {
                 LEFT JOIN `analyze` a ON a.chat = c.id
                 WHERE au.uuid = ?";
 
-            // Add organization filter if user has an organization
-            if ($userOrg) {
-                $sql .= " AND au.organization = ?";
+            // Add organizations filter if user has organizations
+            if ($userOrgs && !empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " AND au.organization IN ($placeholders)";
             }
 
             $sql .= " GROUP BY 
@@ -321,8 +342,9 @@ class Audit {
 
             $stmt = $this->db->prepare($sql);
             
-            if ($userOrg) {
-                $stmt->execute([$uuid, $userOrg]);
+            if ($userOrgs && !empty($userOrgs)) {
+                $params = array_merge([$uuid], $userOrgs);
+                $stmt->execute($params);
             } else {
                 $stmt->execute([$uuid]);
             }
