@@ -14,8 +14,8 @@ class Audit {
 
     public function getAll() {
         try {
-            // Get current user's organization from JWT
-            $userOrg = $this->getCurrentUserOrganization();
+            // Get current user's organizations from JWT
+            $userOrgs = $this->getCurrentUserOrganization();
 
             $sql = "
                 SELECT 
@@ -54,17 +54,18 @@ class Audit {
                 LEFT JOIN chats c ON c.audit_uuid = a.uuid
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid";
 
-            // Add organization filter if user has an organization
-            if ($userOrg) {
-                $sql .= " WHERE a.organization = ?";
+            // Add organizations filter if user has organizations
+            if ($userOrgs && !empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " WHERE a.organization IN ($placeholders)";
             }
 
             $sql .= " GROUP BY a.id ORDER BY a.created_at DESC";
 
             $stmt = $this->db->prepare($sql);
 
-            if ($userOrg) {
-                $stmt->execute([$userOrg]);
+            if ($userOrgs && !empty($userOrgs)) {
+                $stmt->execute($userOrgs);
             } else {
                 $stmt->execute();
             }
@@ -457,8 +458,8 @@ class Audit {
                 WHERE user = ?
             ");
             $stmt->execute([$userId]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ? $result['organization'] : null;
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return array_column($results, 'organization');
         } catch (PDOException $e) {
             throw new Exception("Error getting user organization: " . $e->getMessage());
         }
