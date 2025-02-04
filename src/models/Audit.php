@@ -207,8 +207,8 @@ class Audit {
 
     public function getUsers($uuid) {
         try {
-            // Get current user's organization from JWT
-            $userOrg = $this->getCurrentUserOrganization();
+            // Get current user's organizations from JWT
+            $userOrgs = $this->getCurrentUserOrganization();
 
             $sql = "
                 WITH audit_data AS (
@@ -220,8 +220,10 @@ class Audit {
                     FROM audits a
                     WHERE a.uuid = ?";
 
-            if ($userOrg) {
-                $sql .= " AND a.organization = ?";
+            // Add organizations filter if user has organizations
+            if ($userOrgs && !empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " AND a.organization IN ($placeholders)";
             }
 
             $sql .= "),
@@ -271,8 +273,14 @@ class Audit {
 
             $stmt = $this->db->prepare($sql);
             
-            if ($userOrg) {
-                $stmt->execute([$uuid, $userOrg, $uuid, $uuid]);
+            if ($userOrgs && !empty($userOrgs)) {
+                // Merge parameters: [uuid, org1, org2, ..., uuid, uuid]
+                $params = array_merge(
+                    [$uuid],
+                    $userOrgs,
+                    [$uuid, $uuid]
+                );
+                $stmt->execute($params);
             } else {
                 $stmt->execute([$uuid, $uuid, $uuid]);
             }
