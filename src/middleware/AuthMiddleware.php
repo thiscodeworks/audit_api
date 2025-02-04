@@ -3,6 +3,7 @@ require_once __DIR__ . '/../utils/JWTHandler.php';
 
 class AuthMiddleware {
     private $jwt;
+    private static $userData = null;
 
     public function __construct() {
         $this->jwt = new JWTHandler();
@@ -26,6 +27,15 @@ class AuthMiddleware {
             return false;
         }
 
+        // Store the decoded user data
+        self::$userData = $decoded->data;
         return true;
+    }
+
+    public static function getAuthenticatedUser() {
+        if (self::$userData === null) {
+            throw new Exception('No authenticated user found. Make sure authenticate() was called.');
+        }
+        return self::$userData;
     }
 } 

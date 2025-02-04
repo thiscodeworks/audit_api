@@ -3,6 +3,7 @@ require_once __DIR__ . '/../models/Analysis.php';
 require_once __DIR__ . '/../services/AnthropicService.php';
 require_once __DIR__ . '/../utils/Env.php';
 require_once __DIR__ . '/../services/PusherService.php';
+require_once __DIR__ . '/../middleware/AuthMiddleware.php';
 
 class AnalysisService {
     private $analysis;
@@ -244,29 +245,9 @@ Respond ONLY with the JSON object, no additional text.";
         try {
             $db = Database::getInstance();
             
-            // Get current user's ID from JWT token
-            $headers = getallheaders();
-            $token = $headers['Authorization'] ?? null;
-            if (!$token) {
-                throw new Exception('Authorization header missing');
-            }
-            
-            // Remove 'Bearer ' prefix
-            $token = str_replace('Bearer ', '', $token);
-            
-            // Decode JWT token
-            $tokenParts = explode('.', $token);
-            if (count($tokenParts) != 3) {
-                throw new Exception('Invalid token format');
-            }
-            
-            // Get payload
-            $payload = json_decode(base64_decode($tokenParts[1]), true);
-            if (!$payload || !isset($payload['data']['id'])) {
-                throw new Exception('Invalid token payload');
-            }
-            
-            $userId = $payload['data']['id'];
+            // Get current user's ID from AuthMiddleware
+            $userData = AuthMiddleware::getAuthenticatedUser();
+            $userId = $userData->id;
             
             // Verify user exists
             $userQuery = "SELECT id FROM users WHERE id = ?";
