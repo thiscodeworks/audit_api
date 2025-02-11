@@ -1,5 +1,5 @@
 version: '3.8'
-
+name: auditbot
 services:
   web:
     container_name: api-auditbot

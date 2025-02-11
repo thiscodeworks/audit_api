@@ -80,6 +80,7 @@ function registerRoutes($router) {
     $router->post('/analyze/chat/{uuid}', 'AnalyzeController@analyzeChat',false);
     $router->get('/analyze/chat/{uuid}/detail', 'AnalyzeController@getChatDetail');
     $router->get('/analyze/dashboard', 'AnalyzeController@getDashboardStats');
+    $router->post('/analyze/audit/{uuid}', 'AnalyzeController@createAuditAnalysis',false);
 }
 
 // Register all routes

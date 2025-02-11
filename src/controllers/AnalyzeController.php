@@ -161,4 +161,30 @@ class AnalyzeController {
             ]);
         }
     }
+
+    public function createAuditAnalysis($params) {
+        try {
+            $result = $this->analysisService->analyzeAudit($params['uuid']);
+            
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => $result['message']
+                ]);
+            } else {
+                http_response_code(404);
+                echo json_encode([
+                    'success' => false,
+                    'error' => $result['error']
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log("Error in AnalyzeController@createAuditAnalysis: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Internal server error: ' . $e->getMessage()
+            ]);
+        }
+    }
 } 

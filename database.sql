@@ -142,4 +142,49 @@ CREATE TABLE `users_permission` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+DROP TABLE IF EXISTS `audit_slides`;
+CREATE TABLE `audit_slides` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `audit_id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text,
+  `order_index` int(11) NOT NULL DEFAULT 0,
+  `is_home` tinyint(1) NOT NULL DEFAULT 0,
+  `html_content` text,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `audit_id` (`audit_id`),
+  CONSTRAINT `audit_slides_ibfk_1` FOREIGN KEY (`audit_id`) REFERENCES `audits` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `audit_findings`;
+CREATE TABLE `audit_findings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `slide_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `recommendation` text NOT NULL,
+  `severity` enum('low','medium','high') NOT NULL,
+  `order_index` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `slide_id` (`slide_id`),
+  CONSTRAINT `audit_findings_ibfk_1` FOREIGN KEY (`slide_id`) REFERENCES `audit_slides` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `audit_finding_examples`;
+CREATE TABLE `audit_finding_examples` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `finding_id` int(11) NOT NULL,
+  `chat_id` int(11) NOT NULL,
+  `description` text,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `finding_id` (`finding_id`),
+  KEY `chat_id` (`chat_id`),
+  CONSTRAINT `audit_finding_examples_ibfk_1` FOREIGN KEY (`finding_id`) REFERENCES `audit_findings` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `audit_finding_examples_ibfk_2` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 2025-01-21 14:16:47

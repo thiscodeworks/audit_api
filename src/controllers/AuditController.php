@@ -246,12 +246,98 @@ class AuditController {
                 return;
             }
 
+            $db = Database::getInstance();
+            
+            // Get analysis statistics
+            $analysisQuery = "
+                SELECT 
+                    COUNT(DISTINCT s.id) as total_slides,
+                    (
+                        SELECT html_content 
+                        FROM audit_slides 
+                        WHERE audit_id = s.audit_id AND is_home = 1 
+                        LIMIT 1
+                    ) as summary,
+                    COUNT(DISTINCT f.id) as total_findings,
+                    SUM(CASE WHEN f.severity = 'high' THEN 1 ELSE 0 END) as high_severity,
+                    SUM(CASE WHEN f.severity = 'medium' THEN 1 ELSE 0 END) as medium_severity,
+                    SUM(CASE WHEN f.severity = 'low' THEN 1 ELSE 0 END) as low_severity
+                FROM audit_slides s
+                LEFT JOIN audit_findings f ON f.slide_id = s.id
+                WHERE s.audit_id = (SELECT id FROM audits WHERE uuid = ?)
+                GROUP BY s.audit_id";
+            
+            $stmt = $db->prepare($analysisQuery);
+            $stmt->execute([$uuid]);
+            $analysisStats = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Get categories with their findings count and details
+            $categoriesQuery = "
+                SELECT 
+                    s.id as slide_id,
+                    s.name as category,
+                    s.description,
+                    COUNT(DISTINCT f.id) as findings_count,
+                    COALESCE(
+                        JSON_ARRAYAGG(
+                            IF(f.id IS NOT NULL,
+                                JSON_OBJECT(
+                                    'id', f.id,
+                                    'title', f.title,
+                                    'recommendation', f.recommendation,
+                                    'severity', f.severity,
+                                    'order_index', f.order_index,
+                                    'examples', COALESCE(
+                                        (
+                                            SELECT JSON_ARRAYAGG(
+                                                JSON_OBJECT(
+                                                    'id', e.id,
+                                                    'chat_id', e.chat_id,
+                                                    'chat_uuid', c.uuid,
+                                                    'description', e.description,
+                                                    'username', u.name,
+                                                    'created_at', e.created_at
+                                                )
+                                            )
+                                            FROM audit_finding_examples e
+                                            LEFT JOIN chats c ON c.id = e.chat_id
+                                            LEFT JOIN users u ON u.id = c.user
+                                            WHERE e.finding_id = f.id
+                                        ),
+                                        JSON_ARRAY()
+                                    )
+                                ),
+                                NULL
+                            )
+                        ),
+                        JSON_ARRAY()
+                    ) as findings
+                FROM audit_slides s
+                LEFT JOIN audit_findings f ON f.slide_id = s.id
+                WHERE s.audit_id = (SELECT id FROM audits WHERE uuid = ?)
+                AND s.is_home = 0
+                GROUP BY s.id
+                ORDER BY s.order_index";
+            
+            $stmt = $db->prepare($categoriesQuery);
+            $stmt->execute([$uuid]);
+            $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Process the findings JSON for each category
+            foreach ($categories as &$category) {
+                // Decode the JSON string into an array
+                $findings = json_decode($category['findings'], true);
+                // Remove any null values (from the LEFT JOIN)
+                $category['findings'] = array_values(array_filter($findings));
+                // Sort findings by order_index
+                usort($category['findings'], function($a, $b) {
+                    return $a['order_index'] - $b['order_index'];
+                });
+            }
+
             $isAssignType = $stats['type'] === 'assign';
             $totalAssigned = $isAssignType ? (int)$stats['total_assigned_users'] : (int)$stats['total_active_users'];
             $totalFilled = (int)$stats['total_active_users'];
-            
-            // Parse audit_data JSON field
-            $auditData = json_decode($stats['audit_data'] ?? '{}', true) ?: [];
             
             echo json_encode([
                 'data' => [
@@ -262,11 +348,17 @@ class AuditController {
                     'percentage_filled' => $totalAssigned > 0 ? round(($totalFilled / $totalAssigned) * 100) : 0,
                     'total_chats' => (int)$stats['total_chats'],
                     'total_messages' => (int)$stats['total_messages'],
-                    'sentiment_distribution' => $stats['sentiment'],
-                    'summary' => $auditData['summary'] ?? '',
-                    'key_findings' => $auditData['key_findings'] ?? '',
-                    'recommendations' => $auditData['recommendations'] ?? [],
-                    'tags' => $auditData['tags'] ?? []
+                    'analysis' => $analysisStats ? [
+                        'total_slides' => (int)$analysisStats['total_slides'],
+                        'total_findings' => (int)$analysisStats['total_findings'],
+                        'severity_distribution' => [
+                            'high' => (int)$analysisStats['high_severity'],
+                            'medium' => (int)$analysisStats['medium_severity'],
+                            'low' => (int)$analysisStats['low_severity']
+                        ],
+                        'summary' => $analysisStats['summary'],
+                        'categories' => $categories
+                    ] : null
                 ]
             ]);
         } catch (Exception $e) {

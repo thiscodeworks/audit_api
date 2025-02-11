@@ -365,4 +365,185 @@ Respond ONLY with the JSON object, no additional text.";
             ];
         }
     }
+
+    public function analyzeAudit($auditUuid) {
+        try {
+            $db = Database::getInstance();
+
+            // Get all analyzed chats for this audit
+            $query = "SELECT a.keyfindings, a.sentiment, c.id as chat_id
+                     FROM `analyze` a
+                     JOIN chats c ON a.chat = c.id
+                     WHERE c.audit_uuid = ?";
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute([$auditUuid]);
+            $analyses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($analyses)) {
+                return [
+                    'success' => false,
+                    'error' => 'No analyzed chats found for this audit'
+                ];
+            }
+
+            // Get audit ID
+            $auditQuery = "SELECT id FROM audits WHERE uuid = ?";
+            $stmt = $db->prepare($auditQuery);
+            $stmt->execute([$auditUuid]);
+            $audit = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$audit) {
+                return [
+                    'success' => false,
+                    'error' => 'Audit not found'
+                ];
+            }
+
+            // Begin transaction
+            $db->beginTransaction();
+
+            try {
+                // Delete existing slides (will cascade delete findings and examples)
+                $deleteQuery = "DELETE FROM audit_slides WHERE audit_id = ?";
+                $stmt = $db->prepare($deleteQuery);
+                $stmt->execute([$audit['id']]);
+
+                // Create a prompt for Claude to analyze and group the findings
+                $findingsText = "";
+                $chatMapping = [];
+                foreach ($analyses as $index => $analysis) {
+                    $findingsText .= "- Finding #{$index}: " . $analysis['keyfindings'] . " (Sentiment: " . $analysis['sentiment'] . ")\n";
+                    $chatMapping[$index] = $analysis['chat_id'];
+                }
+
+                $prompt = "You are an expert audit analyzer. Your task is to analyze the following key findings from an audit and create a structured presentation in Czech.
+
+Key Findings:
+$findingsText
+
+Instructions:
+1. Group the findings into logical categories
+2. For each finding:
+   - Assess its severity (must be exactly one of: low, medium, high)
+   - Provide specific, actionable recommendations in clear, professional Czech
+   - Reference the finding number (e.g., Finding #0, Finding #1) in the chat_id field
+3. Create an executive summary in clear, professional Czech
+4. Format everything in the exact JSON structure shown below
+5. Each group should have at least 3 findings
+6. If there is enough data, create as more slides you can
+6. The home slide should be a summary of the findings, only paragrapsh using maximum italic / strong tags
+
+Respond with ONLY the following JSON structure, no other text:
+{
+    \"home_slide\": {
+        \"html_content\": \"<div class='executive-summary'><p>Přehled hlavních zjištění...</p></div>\"
+    },
+    \"slides\": [
+        {
+            \"name\": \"Název kategorie\",
+            \"description\": \"Stručný popis této kategorie\",
+            \"findings\": [
+                {
+                    \"title\": \"Jasný název zjištění\",
+                    \"severity\": \"low\",
+                    \"recommendation\": \"Jasné, proveditelné doporučení\",
+                    \"chat_id\": 0
+                }
+            ]
+        }
+    ]
+}
+
+Remember:
+- All content must be in clear, professional Czech
+- Use valid HTML in html_content
+- severity must be exactly 'low', 'medium', or 'high'
+- Reference findings by their number (0, 1, 2, etc.) in chat_id
+- Make the analysis professional and insightful";
+
+                // Get analysis from Anthropic
+                $response = $this->anthropic->analyze($prompt);
+                error_log("Raw Claude response: " . $response);
+                
+                $analysisResult = json_decode($response, true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    error_log("JSON parse error: " . json_last_error_msg());
+                    error_log("Failed to parse response: " . $response);
+                    return [
+                        'success' => false,
+                        'error' => 'Failed to parse analysis response: ' . json_last_error_msg()
+                    ];
+                }
+
+                // Validate the required structure
+                if (!isset($analysisResult['home_slide']) || !isset($analysisResult['slides'])) {
+                    error_log("Invalid response structure: " . json_encode($analysisResult));
+                    return [
+                        'success' => false,
+                        'error' => 'Invalid analysis response structure'
+                    ];
+                }
+
+                // Create home slide
+                $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
+                                 VALUES (?, 'Home', 'Executive Summary', 1, ?, 0)";
+                $stmt = $db->prepare($homeSlideQuery);
+                $stmt->execute([$audit['id'], $analysisResult['home_slide']['html_content']]);
+
+                // Create category slides and findings
+                foreach ($analysisResult['slides'] as $index => $slide) {
+                    // Create slide
+                    $slideQuery = "INSERT INTO audit_slides (audit_id, name, description, order_index) 
+                                 VALUES (?, ?, ?, ?)";
+                    $stmt = $db->prepare($slideQuery);
+                    $stmt->execute([$audit['id'], $slide['name'], $slide['description'], $index + 1]);
+                    $slideId = $db->lastInsertId();
+
+                    // Create findings for this slide
+                    foreach ($slide['findings'] as $findingIndex => $finding) {
+                        // Insert finding
+                        $findingQuery = "INSERT INTO audit_findings (slide_id, title, recommendation, severity, order_index) 
+                                       VALUES (?, ?, ?, ?, ?)";
+                        $stmt = $db->prepare($findingQuery);
+                        $stmt->execute([
+                            $slideId,
+                            $finding['title'],
+                            $finding['recommendation'],
+                            $finding['severity'],
+                            $findingIndex
+                        ]);
+                        $findingId = $db->lastInsertId();
+
+                        // Create example if chat_id is valid
+                        if (isset($finding['chat_id']) && isset($chatMapping[$finding['chat_id']])) {
+                            $exampleQuery = "INSERT INTO audit_finding_examples (finding_id, chat_id) 
+                                          VALUES (?, ?)";
+                            $stmt = $db->prepare($exampleQuery);
+                            $stmt->execute([$findingId, $chatMapping[$finding['chat_id']]]);
+                        }
+                    }
+                }
+
+                $db->commit();
+
+                return [
+                    'success' => true,
+                    'message' => 'Audit analysis created successfully'
+                ];
+
+            } catch (Exception $e) {
+                $db->rollBack();
+                throw $e;
+            }
+
+        } catch (Exception $e) {
+            error_log("Error in analyzeAudit: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
 } 
