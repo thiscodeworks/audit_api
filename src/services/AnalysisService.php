@@ -427,12 +427,11 @@ Instructions:
 2. For each finding:
    - Assess its severity (must be exactly one of: low, medium, high)
    - Provide specific, actionable recommendations in clear, professional Czech
-   - Reference the finding number (e.g., Finding #0, Finding #1) in the chat_id field
 3. Create an executive summary in clear, professional Czech
 4. Format everything in the exact JSON structure shown below
 5. Each group should have at least 3 findings
-6. If there is enough data, create as more slides you can
-6. The home slide should be a summary of the findings, only paragrapsh using maximum italic / strong tags
+6. If there is enough data, create as more groups you can
+7. The home slide should be a summary of the findings, only paragrapsh using maximum italic / strong tags
 
 Respond with ONLY the following JSON structure, no other text:
 {
@@ -447,8 +446,7 @@ Respond with ONLY the following JSON structure, no other text:
                 {
                     \"title\": \"Jasný název zjištění\",
                     \"severity\": \"low\",
-                    \"recommendation\": \"Jasné, proveditelné doporučení\",
-                    \"chat_id\": 0
+                    \"recommendation\": \"Jasné, proveditelné doporučení\"
                 }
             ]
         }
@@ -459,7 +457,6 @@ Remember:
 - All content must be in clear, professional Czech
 - Use valid HTML in html_content
 - severity must be exactly 'low', 'medium', or 'high'
-- Reference findings by their number (0, 1, 2, etc.) in chat_id
 - Make the analysis professional and insightful";
 
                 // Get analysis from Anthropic
@@ -517,11 +514,15 @@ Remember:
                         $findingId = $db->lastInsertId();
 
                         // Create example if chat_id is valid
-                        if (isset($finding['chat_id']) && isset($chatMapping[$finding['chat_id']])) {
-                            $exampleQuery = "INSERT INTO audit_finding_examples (finding_id, chat_id) 
-                                          VALUES (?, ?)";
-                            $stmt = $db->prepare($exampleQuery);
-                            $stmt->execute([$findingId, $chatMapping[$finding['chat_id']]]);
+                        if (isset($finding['chat_id']) && is_array($finding['chat_id'])) {
+                            foreach ($finding['chat_id'] as $chatIndex) {
+                                if (isset($chatMapping[$chatIndex])) {
+                                    $exampleQuery = "INSERT INTO audit_finding_examples (finding_id, chat_id) 
+                                                  VALUES (?, ?)";
+                                    $stmt = $db->prepare($exampleQuery);
+                                    $stmt->execute([$findingId, $chatMapping[$chatIndex]]);
+                                }
+                            }
                         }
                     }
                 }

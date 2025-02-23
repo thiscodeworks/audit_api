@@ -1,6 +1,9 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../utils/JWTHandler.php';
+require_once __DIR__ . '/../middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../utils/Env.php';
 
 class User {
     private $db;
@@ -34,7 +37,22 @@ class User {
 
     public function getAll() {
         try {
+            // Get current user's organizations
+            $userData = AuthMiddleware::getAuthenticatedUser();
+            $userId = $userData->id;
+            
+            // Get user's organizations
             $stmt = $this->db->prepare("
+                SELECT organization 
+                FROM users_organization 
+                WHERE user = ?
+            ");
+            $stmt->execute([$userId]);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $userOrgs = array_column($results, 'organization');
+            error_log("User organizations: " . json_encode($userOrgs));
+
+            $sql = "
                 SELECT 
                     u.id,
                     u.username,
@@ -44,7 +62,8 @@ class User {
                     u.created_at,
                     u.updated_at,
                     up.permission,
-                    o.name as organization_name,
+                    GROUP_CONCAT(DISTINCT o.id) as organization_ids,
+                    GROUP_CONCAT(DISTINCT o.name) as organization_names,
                     (
                         SELECT COUNT(DISTINCT c.id)
                         FROM chats c
@@ -58,15 +77,58 @@ class User {
                     ) as total_messages
                 FROM users u
                 LEFT JOIN users_permission up ON up.user = u.id
-                LEFT JOIN users_organization uo ON uo.user = u.id
-                LEFT JOIN organizations o ON o.id = uo.organization
-                GROUP BY u.id
-                ORDER BY u.name
-            ");
-            $stmt->execute();
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+                JOIN users_organization uo ON uo.user = u.id
+                JOIN organizations o ON o.id = uo.organization";
+
+            // Add organizations filter if user has organizations
+            if (!empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " WHERE o.id IN ($placeholders)";
+            }
+
+            $sql .= " GROUP BY u.id ORDER BY u.name";
+
+            error_log("SQL Query: " . $sql);
+            error_log("Parameters: " . json_encode($userOrgs));
+
+            $stmt = $this->db->prepare($sql);
+
+            if (!empty($userOrgs)) {
+                $stmt->execute($userOrgs);
+            } else {
+                $stmt->execute();
+            }
+
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Query results: " . json_encode($results));
+
+            // Format the organizations as arrays
+            foreach ($results as &$user) {
+                if (!isset($user['organization_ids']) || !isset($user['organization_names'])) {
+                    error_log("Missing organization data for user: " . json_encode($user));
+                    continue;
+                }
+                $user['organizations'] = array_map(function($id, $name) {
+                    return ['id' => $id, 'name' => $name];
+                }, 
+                explode(',', $user['organization_ids']), 
+                explode(',', $user['organization_names']));
+
+                // Remove the concatenated fields
+                unset($user['organization_ids']);
+                unset($user['organization_names']);
+            }
+
+            return $results;
         } catch (PDOException $e) {
+            error_log("PDO Error in getAll: " . $e->getMessage());
+            error_log("SQL State: " . $e->getCode());
+            error_log("Stack trace: " . $e->getTraceAsString());
             throw new Exception("Error fetching users: " . $e->getMessage());
+        } catch (Exception $e) {
+            error_log("General Error in getAll: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            throw $e;
         }
     }
 

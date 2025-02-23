@@ -21,7 +21,7 @@ class UserController {
                     'name' => $user['name'],
                     'email' => $user['email'],
                     'position' => $user['position'],
-                    'organization' => $user['organization_name'],
+                    'organizations' => $user['organizations'] ?? [],
                     'permission' => $user['permission'] ?? 'user',
                     'stats' => [
                         'total_chats' => (int)$user['total_chats'],
@@ -38,8 +38,13 @@ class UserController {
             ]);
         } catch (Exception $e) {
             error_log("Error in UserController@list: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['error' => 'Internal server error']);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 
@@ -50,6 +55,11 @@ class UserController {
 
             // Debug input data
             error_log("Create user input data: " . json_encode($data));
+
+            // Handle both organization and organizations field
+            if (isset($data['organizations']) && !empty($data['organizations'])) {
+                $data['organization'] = $data['organizations'][0]; // Take the first organization
+            }
 
             // Validate required fields
             $requiredFields = ['name', 'email', 'organization', 'permission'];
@@ -67,6 +77,7 @@ class UserController {
                 'email' => $data['email'],
                 'position' => $data['position'] ?? null,
                 'organization' => $data['organization'],
+                'organizations' => $data['organizations'] ?? [$data['organization']],
                 'username' => $data['username'] ?? null,
                 'password' => $data['password'] ?? null,
                 'permission' => $data['permission']

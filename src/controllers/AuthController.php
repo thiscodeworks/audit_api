@@ -78,12 +78,31 @@ class AuthController {
             return;
         }
 
+        // Get user global permissions
+        $permStmt = $this->db->prepare("SELECT permission FROM users_permission WHERE user = ?");
+        $permStmt->execute([$user['id']]);
+        $permissions = $permStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Get user organizations
+        $orgStmt = $this->db->prepare("
+            SELECT o.id, o.name 
+            FROM organizations o 
+            JOIN users_organization uo ON o.id = uo.organization 
+            WHERE uo.user = ?
+        ");
+        $orgStmt->execute([$user['id']]);
+        $organizations = $orgStmt->fetchAll(PDO::FETCH_ASSOC);
+
         echo json_encode([
             'data' => [
                 'id' => $user['id'],
                 'username' => $user['username'],
                 'name' => $user['name'],
-                'created_at' => $user['created_at']
+                'created_at' => $user['created_at'],
+                'permissions' => [
+                    'global' => $permissions,
+                    'organizations' => $organizations
+                ]
             ]
         ]);
     }

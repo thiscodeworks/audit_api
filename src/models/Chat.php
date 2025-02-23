@@ -8,42 +8,135 @@ class Chat {
     }
 
     public function getAll() {
-        $stmt = $this->db->prepare("
-            SELECT c.*,
-                   a.company_name,
-                   u.name as user_name,
-                   u.email as user_email,
-                   (SELECT COUNT(*) FROM messages m WHERE m.chat_uuid = c.uuid AND m.is_hidden = 0) as message_count,
-                   (SELECT created_at 
-                    FROM messages 
-                    WHERE chat_uuid = c.uuid 
-                    ORDER BY created_at DESC 
-                    LIMIT 1) as last_message_at
+        try {
+            // Get current user's organizations
+            error_log("Chat::getAll - Starting to fetch user organizations");
+            $userData = AuthMiddleware::getAuthenticatedUser();
+            $userId = $userData->id;
+            error_log("Chat::getAll - User ID: " . $userId);
+            
+            // Get user's organizations
+            $stmt = $this->db->prepare("
+                SELECT organization 
+                FROM users_organization 
+                WHERE user = ?
+            ");
+            $stmt->execute([$userId]);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $userOrgs = array_column($results, 'organization');
+            error_log("Chat::getAll - User organizations: " . json_encode($userOrgs));
+
+            $sql = "WITH user_messages AS (
+                SELECT 
+                    chat_uuid,
+                    COUNT(*) as user_message_count
+                FROM messages 
+                WHERE role = 'user'
+                    AND (is_hidden = 0 OR is_hidden IS NULL)
+                GROUP BY chat_uuid
+                HAVING COUNT(*) > 0
+            )
+            SELECT 
+                c.*,
+                a.company_name,
+                u.name as username,
+                u.email as user_email,
+                (SELECT COUNT(*) FROM messages m WHERE m.chat_uuid = c.uuid AND (m.is_hidden = 0 OR m.is_hidden IS NULL)) as message_count,
+                (SELECT created_at 
+                FROM messages 
+                WHERE chat_uuid = c.uuid 
+                ORDER BY created_at DESC 
+                LIMIT 1) as last_message_at,
+                an.id as analyze_id,
+                an.sentiment,
+                an.summary,
+                an.keyfindings,
+                an.goal_fulfill
             FROM chats c
             LEFT JOIN audits a ON c.audit_uuid = a.uuid
             LEFT JOIN users u ON c.user = u.id
-            ORDER BY c.created_at DESC
-        ");
-        
-        $stmt->execute();
-        $chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            LEFT JOIN `analyze` an ON an.chat = c.id
+            INNER JOIN user_messages um ON um.chat_uuid = c.uuid
+            WHERE 1=1";
 
-        // Format the response
-        return array_map(function($chat) {
-            return [
-                'uuid' => $chat['uuid'],
-                'audit_uuid' => $chat['audit_uuid'],
-                'company_name' => $chat['company_name'],
-                'user' => [
-                    'name' => $chat['user_name'] ?? null,
-                    'email' => $chat['user_email'] ?? null
-                ],
-                'message_count' => (int)$chat['message_count'],
-                'last_message_at' => $chat['last_message_at'],
-                'created_at' => $chat['created_at'],
-                'updated_at' => $chat['updated_at']
-            ];
-        }, $chats);
+            // Add organizations filter
+            if (!empty($userOrgs)) {
+                $placeholders = str_repeat('?,', count($userOrgs) - 1) . '?';
+                $sql .= " AND a.organization IN ($placeholders)";
+            }
+
+            $sql .= " ORDER BY c.created_at DESC";
+            
+            error_log("Chat::getAll - SQL Query: " . $sql);
+            error_log("Chat::getAll - Query parameters: " . json_encode($userOrgs));
+
+            $stmt = $this->db->prepare($sql);
+            
+            if (!empty($userOrgs)) {
+                if (!$stmt->execute($userOrgs)) {
+                    $error = $stmt->errorInfo();
+                    error_log("Chat::getAll - Execute failed: " . json_encode($error));
+                    throw new Exception("Failed to execute query: " . $error[2]);
+                }
+            } else {
+                if (!$stmt->execute()) {
+                    $error = $stmt->errorInfo();
+                    error_log("Chat::getAll - Execute failed: " . json_encode($error));
+                    throw new Exception("Failed to execute query: " . $error[2]);
+                }
+            }
+            
+            $chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Chat::getAll - Number of chats found: " . count($chats));
+
+            // Format the response
+            return array_map(function($chat) {
+                $formattedChat = [
+                    'uuid' => $chat['uuid'],
+                    'audit_uuid' => $chat['audit_uuid'],
+                    'company_name' => $chat['company_name'],
+                    'user' => [
+                        'name' => $chat['username'] ?? null,
+                        'email' => $chat['user_email'] ?? null
+                    ],
+                    'stats' => [
+                        'messages' => (int)$chat['message_count'],
+                        'goal_fulfill' => (int)($chat['goal_fulfill'] ?? 0)
+                    ],
+                    'created_at' => $chat['created_at'],
+                    'updated_at' => $chat['updated_at'],
+                    'last_message_at' => $chat['last_message_at'],
+                    'state' => $chat['state'],
+                    'has_analysis' => isset($chat['analyze_id']),
+                    'analysis' => [
+                        'summary' => $chat['summary'] ?? '',
+                        'keyfindings' => $chat['keyfindings'] ?? ''
+                    ]
+                ];
+
+                // Transform sentiment if analysis exists
+                if (isset($chat['sentiment']) && isset($chat['analyze_id'])) {
+                    $sentimentValue = (int)$chat['sentiment'];
+                    if ($sentimentValue >= 70) {
+                        $formattedChat['sentiment'] = 'positive';
+                    } else if ($sentimentValue >= 40) {
+                        $formattedChat['sentiment'] = 'neutral';
+                    } else {
+                        $formattedChat['sentiment'] = 'negative';
+                    }
+                } else {
+                    $formattedChat['sentiment'] = 'neutral';
+                }
+
+                return $formattedChat;
+            }, $chats);
+        } catch (PDOException $e) {
+            error_log("Chat::getAll - PDO Error: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+            throw new Exception("Database error while fetching chats: " . $e->getMessage());
+        } catch (Exception $e) {
+            error_log("Chat::getAll - General Error: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+            throw $e;
+        }
     }
     
     public function getByUuid($uuid) {

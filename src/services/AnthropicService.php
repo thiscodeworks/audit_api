@@ -214,7 +214,40 @@ class AnthropicService {
     public function analyzeAuditWithSonnet($prompt) {
         $data = [
             'model' => 'claude-3-5-sonnet-20241022',
-            'max_tokens' => 15000,
+            'max_tokens' => 8192,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'stream' => false,
+            'temperature' => 0.7
+        ];
+
+        $ch = curl_init($this->baseUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'x-api-key: ' . $this->apiKey,
+            'anthropic-version: 2023-06-01'
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            throw new Exception('Failed to get response from Anthropic API: ' . $response);
+        }
+
+        $responseData = json_decode($response, true);
+        return $responseData['content'][0]['text'];
+    }
+
+    public function generateContent($prompt) {
+        $data = [
+            'model' => 'claude-3-5-haiku-20241022',
+            'max_tokens' => 4096,
             'messages' => [
                 ['role' => 'user', 'content' => $prompt]
             ],

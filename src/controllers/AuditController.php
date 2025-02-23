@@ -5,6 +5,7 @@ require_once __DIR__ . '/../models/Chat.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../services/PostmarkService.php';
 require_once __DIR__ . '/../services/GoogleChatService.php';
+require_once __DIR__ . '/../services/AnthropicService.php';
 
 class AuditController {
     private $audit;
@@ -12,13 +13,17 @@ class AuditController {
     private $user;
     private $postmark;
     private $googleChat;
+    private $db;
+    private $anthropic;
 
     public function __construct() {
+        $this->db = Database::getInstance();
         $this->audit = new Audit();
         $this->chat = new Chat();
         $this->user = new User();
         $this->postmark = new PostmarkService();
         $this->googleChat = new GoogleChatService();
+        $this->anthropic = new AnthropicService(null);
     }
 
     public function start($params) {
@@ -637,6 +642,265 @@ class AuditController {
                 'error' => 'Internal server error',
                 'details' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    public function preview() {
+        try {
+            // Get JSON input
+            $data = json_decode(file_get_contents('php://input'), true);
+            error_log("Preview audit data: " . json_encode($data));
+
+            // Validate required fields
+            $requiredFields = ['title', 'description', 'type', 'organization_id', 'questions'];
+            foreach ($requiredFields as $field) {
+                if (!isset($data[$field])) {
+                    http_response_code(400);
+                    echo json_encode(['error' => "Missing required field: {$field}"]);
+                    return;
+                }
+            }
+
+            // Get organization details
+            $stmt = $this->db->prepare("SELECT name FROM organizations WHERE id = ?");
+            $stmt->execute([$data['organization_id']]);
+            $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$organization) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Organization not found']);
+                return;
+            }
+
+            // Base HTML template
+            $baseTemplate = '<div class="max-w-2xl mx-auto p-4 space-y-4">
+                <div class="text-center space-y-2">
+                    <img src="/uploads/organizations/{{organization_id}}/logo.png" alt="{{company_name}} Logo" class="h-12 mx-auto mb-4">
+                    <h1 class="text-2xl font-bold">{{welcome_title}}</h1>
+                    <p class="text-lg text-gray-600">{{welcome_subtitle}}</p>
+                </div>
+
+                <div class="bg-white border rounded-lg shadow-sm">
+                    <div class="p-4">
+                        <h2 class="text-xl font-semibold mb-2">O auditu</h2>
+                        <div class="space-y-2 text-sm">
+                            <p>{{audit_description}}</p>
+                            <div class="flex items-center space-x-2 text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Doba trvání: {{duration}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white border rounded-lg shadow-sm">
+                    <div class="p-4">
+                        <h2 class="text-xl font-semibold mb-2">Oblasti auditu</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            {{audit_areas}}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-600 text-white rounded-lg shadow-sm" style="background-color: #323232;">
+                    <div class="p-4">
+                        <p class="text-base mb-3 text-center">{{cta_text}}</p>
+                        <button class="w-full py-3 px-4 bg-white text-blue-600 rounded-md text-lg font-semibold flex items-center justify-center">
+                            {{button_text}}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-2 text-center text-xs text-gray-600">
+                    <p>{{thank_you_text}}</p>
+                    <p>{{privacy_text}}</p>
+                </div>
+            </div>';
+
+            // Prepare the prompt for Anthropic
+            $prompt = "You are a helpful assistant that generates customized welcome pages for workplace audits. 
+            Based on the following audit information, generate appropriate text content for each placeholder in the template:
+
+            Audit Title: {$data['title']}
+            Company: {$organization['name']}
+            Description: {$data['description']}
+            Questions: " . implode(', ', $data['questions']) . "
+
+            Generate JSON with the following fields:
+            - welcome_title: A welcoming title
+            - welcome_subtitle: A subtitle explaining the purpose
+            - audit_description: Detailed description of the audit
+            - duration: Estimated duration (based on number of questions)
+            - audit_areas: Array of key areas based on the questions (maximum 8 areas)
+            - cta_text: Call to action text
+            - button_text: Button text
+            - thank_you_text: Thank you message
+            - privacy_text: Privacy notice
+
+            Keep the tone professional but friendly, and make sure the content is in Czech language.
+            The audit_areas should be derived from and related to the questions provided.";
+
+            // Get customized content from Anthropic
+            $anthropicResponse = $this->anthropic->generateContent($prompt);
+            $customContent = json_decode($anthropicResponse, true);
+
+            if (!$customContent) {
+                throw new Exception("Failed to generate customized content");
+            }
+
+            // Generate audit areas HTML
+            $areasHtml = '';
+            foreach ($customContent['audit_areas'] as $area) {
+                $areasHtml .= '<div class="flex items-center space-x-2">
+                    <div class="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                    <span>' . htmlspecialchars($area) . '</span>
+                </div>';
+            }
+
+            // Replace placeholders in template
+            $customizedHtml = str_replace(
+                [
+                    '{{company_name}}',
+                    '{{organization_id}}',
+                    '{{welcome_title}}',
+                    '{{welcome_subtitle}}',
+                    '{{audit_description}}',
+                    '{{duration}}',
+                    '{{audit_areas}}',
+                    '{{cta_text}}',
+                    '{{button_text}}',
+                    '{{thank_you_text}}',
+                    '{{privacy_text}}'
+                ],
+                [
+                    htmlspecialchars($organization['name']),
+                    htmlspecialchars($data['organization_id']),
+                    htmlspecialchars($customContent['welcome_title']),
+                    htmlspecialchars($customContent['welcome_subtitle']),
+                    htmlspecialchars($customContent['audit_description']),
+                    htmlspecialchars($customContent['duration']),
+                    $areasHtml,
+                    htmlspecialchars($customContent['cta_text']),
+                    htmlspecialchars($customContent['button_text']),
+                    htmlspecialchars($customContent['thank_you_text']),
+                    htmlspecialchars($customContent['privacy_text'])
+                ],
+                $baseTemplate
+            );
+
+            // Prepare preview response
+            $preview = [
+                'audit_name' => $data['title'],
+                'company_name' => $organization['name'],
+                'description' => $data['description'],
+                'type' => $data['type'],
+                'organization_id' => $data['organization_id'],
+                'questions' => $data['questions'],
+                'html_template' => $customizedHtml,
+                'preview_data' => [
+                    'total_questions' => count($data['questions']),
+                    'estimated_duration' => count($data['questions']) * 3 . '-' . count($data['questions']) * 5 . ' minutes',
+                    'type_description' => $data['type'] === 'public' ? 'Public audit - anyone with the link can participate' : 'Assigned audit - only invited users can participate'
+                ]
+            ];
+
+            echo json_encode(['data' => $preview]);
+        } catch (Exception $e) {
+            error_log("Error in AuditController@preview: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    public function create() {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            if (!isset($data['title']) || empty($data['title'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Audit title is required']);
+                return;
+            }
+
+            if (!isset($data['organization_id']) || empty($data['organization_id'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Organization is required']);
+                return;
+            }
+
+            // Get authenticated user for audit creation
+            $userData = AuthMiddleware::getAuthenticatedUser();
+            
+            try {
+                // Get organization name for company_name
+                $stmt = $this->db->prepare("SELECT name FROM organizations WHERE id = ?");
+                $stmt->execute([$data['organization_id']]);
+                $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$organization) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Organization not found']);
+                    return;
+                }
+
+                $auditData = [
+                    'title' => $data['title'],  // This will be used as audit_name
+                    'company_name' => $organization['name'],
+                    'organization' => $data['organization_id'],
+                    'type' => $data['type'] ?? 'assign',
+                    'description' => $data['description'] ?? null,
+                    'employee_count_limit' => $data['employee_count_limit'] ?? 0,
+                    'ai_system' => $data['template'] ?? null,
+                    'ai_prompt' => null,
+                    'audit_data' => [
+                        'questions' => $data['questions'] ?? [],
+                        'users' => $data['users'] ?? []
+                    ]
+                ];
+
+                $uuid = $this->audit->create($auditData);
+                
+                if ($uuid) {
+                    // If users are provided, assign them to the audit
+                    if (!empty($data['users'])) {
+                        foreach ($data['users'] as $userId) {
+                            $this->audit->assignUser($uuid, $userId);
+                        }
+                    }
+
+                    echo json_encode([
+                        'message' => 'Audit created successfully',
+                        'data' => [
+                            'uuid' => $uuid
+                        ]
+                    ]);
+                } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => 'Failed to create audit']);
+                }
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode([
+                    'error' => 'Failed to create audit',
+                    'message' => $e->getMessage()
+                ]);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
             ]);
         }
     }

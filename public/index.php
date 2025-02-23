@@ -54,6 +54,10 @@ function registerRoutes($router) {
 
     // Organization routes
     $router->get('/organizations', 'OrganizationController@list');
+    $router->post('/organizations', 'OrganizationController@create');
+    $router->get('/organizations/{id}', 'OrganizationController@get');
+    $router->put('/organizations/{id}', 'OrganizationController@update');
+    $router->delete('/organizations/{id}', 'OrganizationController@delete');
 
     // Audit routes
     $router->get('/audits', 'AuditController@list');
@@ -63,6 +67,7 @@ function registerRoutes($router) {
     $router->get('/audit/{uuid}/available-users', 'AuditController@getAvailableUsers');
     $router->post('/audit/{uuid}/assign', 'AuditController@assignUser');
     $router->post('/audit/post', 'AuditController@create');
+    $router->post('/audit/preview', 'AuditController@preview');
     $router->get('/audit/{uuid}/get', 'AuditController@get', false);
     $router->delete('/audit/{uuid}/delete', 'AuditController@delete');
     $router->put('/audit/{uuid}/edit', 'AuditController@edit');

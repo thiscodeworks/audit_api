@@ -623,4 +623,46 @@ class Audit {
             throw new Exception("Error updating user email status");
         }
     }
+
+    public function create($data) {
+        try {
+            // Generate UUID
+            $uuid = bin2hex(random_bytes(16));
+            
+            // Prepare audit data
+            $sql = "INSERT INTO audits (
+                uuid,
+                audit_name,
+                company_name,
+                organization,
+                type,
+                description,
+                employee_count_limit,
+                ai_system,
+                ai_prompt,
+                audit_data
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                $uuid,
+                $data['title'],  // Using title as audit_name
+                $data['company_name'],
+                $data['organization'],
+                $data['type'],
+                $data['description'],
+                $data['employee_count_limit'],
+                $data['ai_system'],
+                $data['ai_prompt'],
+                json_encode($data['audit_data'])
+            ]);
+
+            return $uuid;
+        } catch (PDOException $e) {
+            error_log("Error creating audit: " . $e->getMessage());
+            throw new Exception("Failed to create audit: " . $e->getMessage());
+        }
+    }
 }

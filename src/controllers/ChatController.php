@@ -12,7 +12,12 @@ class ChatController {
     public function list() {
         try {
             $chats = $this->chat->getAll();
-            echo json_encode(['data' => $chats]);
+            echo json_encode([
+                'data' => $chats,
+                'stats' => [
+                    'total' => count($chats)
+                ]
+            ]);
         } catch (Exception $e) {
             error_log("Error in ChatController@list: " . $e->getMessage());
             http_response_code(500);
