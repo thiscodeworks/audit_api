@@ -24,13 +24,36 @@ class Analysis {
         }
     }
 
-    public function create($chatId, $sentiment, $summary, $keyfindings) {
+    public function create($chatId, $sentiment, $summary, $keyfindings, $tags = '', $topics = '', $customerSatisfaction = null, $agentEffectiveness = null, $improvementSuggestions = '', $conversationQuality = null) {
         try {
             $stmt = $this->db->prepare("
-                INSERT INTO `analyze` (chat, sentiment, summary, keyfindings, created_at)
-                VALUES (?, ?, ?, ?, NOW())
+                INSERT INTO `analyze` (
+                    chat, 
+                    sentiment, 
+                    summary, 
+                    keyfindings, 
+                    tags, 
+                    topics, 
+                    customer_satisfaction, 
+                    agent_effectiveness, 
+                    improvement_suggestions, 
+                    conversation_quality, 
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
-            return $stmt->execute([$chatId, $sentiment, $summary, $keyfindings]);
+            return $stmt->execute([
+                $chatId, 
+                $sentiment, 
+                $summary, 
+                $keyfindings, 
+                $tags, 
+                $topics, 
+                $customerSatisfaction, 
+                $agentEffectiveness, 
+                $improvementSuggestions, 
+                $conversationQuality
+            ]);
         } catch (PDOException $e) {
             throw new Exception("Error creating analysis: " . $e->getMessage());
         }
@@ -121,6 +144,12 @@ class Analysis {
                     sentiment,
                     summary,
                     keyfindings,
+                    tags,
+                    topics,
+                    customer_satisfaction,
+                    agent_effectiveness,
+                    improvement_suggestions,
+                    conversation_quality,
                     created_at as analysis_created_at
                 FROM `analyze`
                 WHERE chat = :chat_id

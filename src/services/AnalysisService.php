@@ -53,8 +53,18 @@ class AnalysisService {
             $prompt = "Analyze the following customer service conversation and provide your analysis in JSON format with the following structure:
 {
     \"sentiment\": [number between 0-100],
-    \"summary\": [brief summary in Czech language],
-    \"findings\": [key findings and insights as a single Czech sentence]
+    \"summary\": [comprehensive overall assessment in Czech language, 2-3 paragraphs],
+    \"keyfindings\": [array of 3-5 key findings as bullet points in Czech language],
+    \"tags\": [array of 3-7 single-word or short phrase tags that describe the conversation topics, issues, or themes, in Czech],
+    \"topics\": [array of main conversation topics discussed, in Czech],
+    \"customer_satisfaction\": [number between 0-100 estimating customer satisfaction level],
+    \"agent_effectiveness\": [number between 0-100 rating how effective the agent was],
+    \"improvement_suggestions\": [array of 1-3 specific improvement suggestions for the agent or service, in Czech],
+    \"conversation_quality\": {
+        \"clarity\": [number between 0-100 rating communication clarity],
+        \"speed\": [number between 0-100 rating response speed/efficiency],
+        \"solution\": [number between 0-100 rating effectiveness of solution provided]
+    }
 }
 
 The sentiment score should be 0-100 where:
@@ -64,7 +74,21 @@ The sentiment score should be 0-100 where:
 - 56-75: Pozitivní
 - 76-100: Velmi pozitivní
 
-Provide the summary and findings in Czech language. The findings should be a single coherent sentence that captures all important insights.
+For the summary, provide a comprehensive overall assessment of the conversation in 2-3 paragraphs in Czech language.
+
+For the keyfindings, provide 3-5 specific, actionable insights as bullet points in Czech. Each finding should be a complete sentence that captures an important aspect of the conversation.
+
+For the tags, provide 3-7 relevant tags as single words or short phrases that describe the main topics, issues, or themes in the conversation. Tags should be in Czech.
+
+For topics, identify the main conversation topics or subjects discussed.
+
+Customer satisfaction should estimate how satisfied the customer appears to be with the interaction.
+
+Agent effectiveness should rate how well the agent handled the conversation.
+
+Improvement suggestions should be specific, actionable recommendations to improve service.
+
+Conversation quality metrics should rate different aspects of the conversation quality.
 
 Conversation:
 " . $conversation . "
@@ -86,6 +110,41 @@ Respond ONLY with the JSON object, no additional text.";
                 ];
             }
 
+            // Convert JSON fields to strings if needed and extract new metrics
+            $keyfindings = $analysis['keyfindings'];
+            if (is_array($keyfindings)) {
+                $keyfindings = implode("\n• ", $keyfindings);
+                // Add a bullet to the first item
+                $keyfindings = "• " . $keyfindings;
+            }
+
+            // Convert tags array to comma-separated string if needed
+            $tags = $analysis['tags'];
+            if (is_array($tags)) {
+                $tags = implode(", ", $tags);
+            }
+
+            // Convert topics array to string if needed
+            $topics = isset($analysis['topics']) ? $analysis['topics'] : [];
+            if (is_array($topics)) {
+                $topics = implode(", ", $topics);
+            }
+
+            // Convert improvement suggestions to string if needed
+            $improvements = isset($analysis['improvement_suggestions']) ? $analysis['improvement_suggestions'] : [];
+            if (is_array($improvements)) {
+                $improvements = implode("\n• ", $improvements);
+                // Add a bullet to the first item if not empty
+                if (!empty($improvements)) {
+                    $improvements = "• " . $improvements;
+                }
+            }
+
+            // Extract other metrics
+            $customerSatisfaction = isset($analysis['customer_satisfaction']) ? $analysis['customer_satisfaction'] : null;
+            $agentEffectiveness = isset($analysis['agent_effectiveness']) ? $analysis['agent_effectiveness'] : null;
+            $conversationQuality = isset($analysis['conversation_quality']) ? json_encode($analysis['conversation_quality']) : null;
+
             // Get chat ID from UUID
             $stmt = Database::getInstance()->prepare("SELECT id FROM chats WHERE uuid = ?");
             $stmt->execute([$chatUuid]);
@@ -98,20 +157,34 @@ Respond ONLY with the JSON object, no additional text.";
                 ];
             }
 
-            // Save analysis
+            // Save analysis - note: we're not changing the database structure here,
+            // just storing the additional data in the JSON response
             $this->analysis->create(
                 $chat['id'],
                 $analysis['sentiment'],
                 $analysis['summary'],
-                $analysis['findings']
+                $keyfindings,
+                $tags,
+                $topics,
+                $customerSatisfaction,
+                $agentEffectiveness,
+                $improvements,
+                isset($analysis['conversation_quality']) ? json_encode($analysis['conversation_quality']) : null
             );
 
+            // Create a comprehensive response with all metrics
             return [
                 'success' => true,
                 'data' => [
                     'sentiment' => $analysis['sentiment'],
                     'summary' => $analysis['summary'],
-                    'findings' => $analysis['findings']
+                    'keyfindings' => $keyfindings,
+                    'tags' => $tags,
+                    'topics' => $topics,
+                    'customer_satisfaction' => $customerSatisfaction,
+                    'agent_effectiveness' => $agentEffectiveness,
+                    'improvement_suggestions' => $improvements,
+                    'conversation_quality' => isset($analysis['conversation_quality']) ? $analysis['conversation_quality'] : null
                 ]
             ];
         } catch (Exception $e) {
@@ -151,8 +224,18 @@ Respond ONLY with the JSON object, no additional text.";
                 $prompt = "Analyze the following customer service conversation and provide your analysis in JSON format with the following structure:
 {
     \"sentiment\": [number between 0-100],
-    \"summary\": [brief summary in Czech language],
-    \"findings\": [key findings and insights as a single Czech sentence]
+    \"summary\": [comprehensive overall assessment in Czech language, 2-3 paragraphs],
+    \"keyfindings\": [array of 3-5 key findings as bullet points in Czech language],
+    \"tags\": [array of 3-7 single-word or short phrase tags that describe the conversation topics, issues, or themes, in Czech],
+    \"topics\": [array of main conversation topics discussed, in Czech],
+    \"customer_satisfaction\": [number between 0-100 estimating customer satisfaction level],
+    \"agent_effectiveness\": [number between 0-100 rating how effective the agent was],
+    \"improvement_suggestions\": [array of 1-3 specific improvement suggestions for the agent or service, in Czech],
+    \"conversation_quality\": {
+        \"clarity\": [number between 0-100 rating communication clarity],
+        \"speed\": [number between 0-100 rating response speed/efficiency],
+        \"solution\": [number between 0-100 rating effectiveness of solution provided]
+    }
 }
 
 The sentiment score should be 0-100 where:
@@ -162,7 +245,21 @@ The sentiment score should be 0-100 where:
 - 56-75: Pozitivní
 - 76-100: Velmi pozitivní
 
-Provide the summary and findings in Czech language. The findings should be a single coherent sentence that captures all important insights.
+For the summary, provide a comprehensive overall assessment of the conversation in 2-3 paragraphs in Czech language.
+
+For the keyfindings, provide 3-5 specific, actionable insights as bullet points in Czech. Each finding should be a complete sentence that captures an important aspect of the conversation.
+
+For the tags, provide 3-7 relevant tags as single words or short phrases that describe the main topics, issues, or themes in the conversation. Tags should be in Czech.
+
+For topics, identify the main conversation topics or subjects discussed.
+
+Customer satisfaction should estimate how satisfied the customer appears to be with the interaction.
+
+Agent effectiveness should rate how well the agent handled the conversation.
+
+Improvement suggestions should be specific, actionable recommendations to improve service.
+
+Conversation quality metrics should rate different aspects of the conversation quality.
 
 Conversation:
 " . $conversation . "
@@ -184,12 +281,53 @@ Respond ONLY with the JSON object, no additional text.";
                     ];
                 }
 
+                // Convert JSON fields to strings if needed and extract new metrics
+                $keyfindings = $analysis['keyfindings'];
+                if (is_array($keyfindings)) {
+                    $keyfindings = implode("\n• ", $keyfindings);
+                    // Add a bullet to the first item
+                    $keyfindings = "• " . $keyfindings;
+                }
+
+                // Convert tags array to comma-separated string if needed
+                $tags = $analysis['tags'];
+                if (is_array($tags)) {
+                    $tags = implode(", ", $tags);
+                }
+
+                // Convert topics array to string if needed
+                $topics = isset($analysis['topics']) ? $analysis['topics'] : [];
+                if (is_array($topics)) {
+                    $topics = implode(", ", $topics);
+                }
+
+                // Convert improvement suggestions to string if needed
+                $improvements = isset($analysis['improvement_suggestions']) ? $analysis['improvement_suggestions'] : [];
+                if (is_array($improvements)) {
+                    $improvements = implode("\n• ", $improvements);
+                    // Add a bullet to the first item if not empty
+                    if (!empty($improvements)) {
+                        $improvements = "• " . $improvements;
+                    }
+                }
+
+                // Extract other metrics
+                $customerSatisfaction = isset($analysis['customer_satisfaction']) ? $analysis['customer_satisfaction'] : null;
+                $agentEffectiveness = isset($analysis['agent_effectiveness']) ? $analysis['agent_effectiveness'] : null;
+                $conversationQuality = isset($analysis['conversation_quality']) ? json_encode($analysis['conversation_quality']) : null;
+
                 // Save analysis
                 $this->analysis->create(
                     $chat['chat_id'],
                     $analysis['sentiment'],
                     $analysis['summary'],
-                    $analysis['findings']
+                    $keyfindings,
+                    $tags,
+                    $topics,
+                    $customerSatisfaction,
+                    $agentEffectiveness,
+                    $improvements,
+                    isset($analysis['conversation_quality']) ? json_encode($analysis['conversation_quality']) : null
                 );
 
                 return [
@@ -198,7 +336,13 @@ Respond ONLY with the JSON object, no additional text.";
                         'chat_uuid' => $chat['chat_uuid'],
                         'sentiment' => $analysis['sentiment'],
                         'summary' => $analysis['summary'],
-                        'findings' => $analysis['findings']
+                        'keyfindings' => $keyfindings,
+                        'tags' => $tags,
+                        'topics' => $topics,
+                        'customer_satisfaction' => $customerSatisfaction,
+                        'agent_effectiveness' => $agentEffectiveness,
+                        'improvement_suggestions' => $improvements,
+                        'conversation_quality' => isset($analysis['conversation_quality']) ? $analysis['conversation_quality'] : null
                     ]
                 ];
             } catch (Exception $e) {
@@ -371,7 +515,7 @@ Respond ONLY with the JSON object, no additional text.";
             $db = Database::getInstance();
 
             // Get all analyzed chats for this audit
-            $query = "SELECT a.keyfindings, a.sentiment, c.id as chat_id
+            $query = "SELECT a.keyfindings, a.sentiment, a.tags, c.id as chat_id
                      FROM `analyze` a
                      JOIN chats c ON a.chat = c.id
                      WHERE c.audit_uuid = ?";
@@ -411,9 +555,13 @@ Respond ONLY with the JSON object, no additional text.";
 
                 // Create a prompt for Claude to analyze and group the findings
                 $findingsText = "";
+                $tagsText = "";
                 $chatMapping = [];
                 foreach ($analyses as $index => $analysis) {
                     $findingsText .= "- Finding #{$index}: " . $analysis['keyfindings'] . " (Sentiment: " . $analysis['sentiment'] . ")\n";
+                    if (!empty($analysis['tags'])) {
+                        $tagsText .= "- Tags for finding #{$index}: " . $analysis['tags'] . "\n";
+                    }
                     $chatMapping[$index] = $analysis['chat_id'];
                 }
 
@@ -421,6 +569,9 @@ Respond ONLY with the JSON object, no additional text.";
 
 Key Findings:
 $findingsText
+
+Tags:
+$tagsText
 
 Instructions:
 1. Group the findings into logical categories
