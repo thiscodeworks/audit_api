@@ -89,8 +89,9 @@ CREATE TABLE `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(255) DEFAULT NULL,
   `name` varchar(255) NOT NULL,
-  `email` varchar(255) NOT NULL,
+  `email` varchar(255) DEFAULT NULL,
   `position` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
   `password` varchar(255) DEFAULT NULL,
   `auth_token` varchar(255) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
@@ -169,22 +170,4 @@ CREATE TABLE `audit_findings` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `slide_id` (`slide_id`),
-  CONSTRAINT `audit_findings_ibfk_1` FOREIGN KEY (`slide_id`) REFERENCES `audit_slides` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-DROP TABLE IF EXISTS `audit_finding_examples`;
-CREATE TABLE `audit_finding_examples` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `finding_id` int(11) NOT NULL,
-  `chat_id` int(11) NOT NULL,
-  `description` text,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `finding_id` (`finding_id`),
-  KEY `chat_id` (`chat_id`),
-  CONSTRAINT `audit_finding_examples_ibfk_1` FOREIGN KEY (`finding_id`) REFERENCES `audit_findings` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `audit_finding_examples_ibfk_2` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 2025-01-21 14:16:47
+  KEY `

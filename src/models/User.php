@@ -61,6 +61,7 @@ class User {
                     u.position,
                     u.created_at,
                     u.updated_at,
+                    u.phone,
                     up.permission,
                     GROUP_CONCAT(DISTINCT o.id) as organization_ids,
                     GROUP_CONCAT(DISTINCT o.name) as organization_names,
@@ -141,6 +142,7 @@ class User {
                     u.name,
                     u.email,
                     u.position,
+                    u.phone,
                     u.created_at,
                     u.updated_at,
                     up.permission,
@@ -214,20 +216,21 @@ class User {
         }
     }
 
-    public function createPublicUser($email, $name, $position) {
+    public function createPublicUser($email, $name, $position, $phone = null) {
         try {
             $this->db->beginTransaction();
 
             // Insert into users table
             $stmt = $this->db->prepare("
-                INSERT INTO users (name, email, position, created_at, updated_at)
-                VALUES (:name, :email, :position, NOW(), NOW())
+                INSERT INTO users (name, email, position, phone, created_at, updated_at)
+                VALUES (:name, :email, :position, :phone, NOW(), NOW())
             ");
 
             $stmt->execute([
                 'name' => $name,
                 'email' => $email,
-                'position' => $position
+                'position' => $position,
+                'phone' => $phone
             ]);
 
             $userId = $this->db->lastInsertId();
@@ -237,6 +240,39 @@ class User {
         } catch (PDOException $e) {
             $this->db->rollBack();
             throw new Exception("Error creating public user: " . $e->getMessage());
+        }
+    }
+
+    public function createAnonymousUser($userData = []) {
+        try {
+            $this->db->beginTransaction();
+
+            // Parse optional user data
+            $name = $userData['name'] ?? 'Anonymous User';
+            $email = $userData['email'] ?? null;
+            $position = $userData['position'] ?? null;
+            $phone = $userData['phone'] ?? null;
+            
+            // Insert into users table with optional fields
+            $stmt = $this->db->prepare("
+                INSERT INTO users (name, email, position, phone, created_at, updated_at)
+                VALUES (:name, :email, :position, :phone, NOW(), NOW())
+            ");
+
+            $stmt->execute([
+                'name' => $name,
+                'email' => $email,
+                'position' => $position,
+                'phone' => $phone
+            ]);
+
+            $userId = $this->db->lastInsertId();
+            $this->db->commit();
+            return $userId;
+
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            throw new Exception("Error creating anonymous user: " . $e->getMessage());
         }
     }
 } 

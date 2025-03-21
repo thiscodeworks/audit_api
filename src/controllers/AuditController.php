@@ -50,22 +50,26 @@ class AuditController {
             $userId = $validation['user_id'] ?? null;
             error_log("Initial user ID from validation: " . ($userId ?? 'null'));
             
-            // For public audits, create a new user if email is provided
+            
+            // For public audits, create a new user with any available user data (can be anonymous)
             if (!$userId && isset($validation['audit']) && $validation['audit']['type'] === 'public') {
-                $email = $data['email'] ?? null;
-                $name = $data['name'] ?? $email; // Use email as name if name is not provided
-                $position = $data['position'] ?? null;
-
-                if (!$email) {
-                    http_response_code(400);
-                    echo json_encode(['error' => 'Email is required for public audits']);
-                    return;
+                // Collect any user data that might be provided
+                $userData = [
+                    'email' => $data['email'] ?? null,
+                    'name' => $data['name'] ?? null,
+                    'position' => $data['position'] ?? null,
+                    'phone' => $data['phone'] ?? null
+                ];
+                
+                // If name is not provided but email is, use email as name
+                if (empty($userData['name']) && !empty($userData['email'])) {
+                    $userData['name'] = $userData['email'];
                 }
-
+                
                 try {
-                    error_log("Creating new public user with email: " . $email . ", name: " . $name);
-                    // Create new user and get their ID
-                    $userId = $this->user->createPublicUser($email, $name, $position);
+                    error_log("Creating new anonymous user with data: " . json_encode($userData));
+                    // Create new user and get their ID using the anonymous user method
+                    $userId = $this->user->createAnonymousUser($userData);
                     error_log("Created new user with ID: " . $userId);
 
                     // Verify user was created
@@ -77,11 +81,7 @@ class AuditController {
                     echo json_encode([
                         'error' => 'Failed to create user',
                         'details' => $e->getMessage(),
-                        'data' => [
-                            'email' => $email,
-                            'name' => $name,
-                            'position' => $position
-                        ]
+                        'data' => $userData
                     ]);
                     return;
                 }
