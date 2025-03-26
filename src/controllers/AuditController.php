@@ -1012,4 +1012,33 @@ class AuditController {
             ]);
         }
     }
+
+    public function prompt() {
+        try {
+            // Get JSON input (same payload as preview)
+            $data = json_decode(file_get_contents('php://input'), true);
+            error_log("Prompt received data: " . json_encode($data));
+
+            // For now, just log the request and return success
+            // In the future, this could process the data to generate a custom prompt
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Prompt request received successfully',
+                'data' => [
+                    'status' => 'processed'
+                ]
+            ]);
+        } catch (Exception $e) {
+            error_log("Error in AuditController@prompt: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
 }

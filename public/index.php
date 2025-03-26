@@ -69,6 +69,7 @@ function registerRoutes($router) {
     $router->post('/audit/post', 'AuditController@create');
     $router->post('/audit/request', 'AuditController@request');
     $router->post('/audit/preview', 'AuditController@preview');
+    $router->post('/audit/prompt', 'AuditController@prompt');
     $router->get('/audit/{uuid}/get', 'AuditController@get', false);
     $router->delete('/audit/{uuid}/delete', 'AuditController@delete');
     $router->put('/audit/{uuid}/edit', 'AuditController@edit');
