@@ -904,4 +904,112 @@ class AuditController {
             ]);
         }
     }
+    
+    public function request() {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            // Validate required fields
+            if (!isset($data['request']) || empty($data['request'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Request content is required']);
+                return;
+            }
+
+            if (!isset($data['organization_id']) || empty($data['organization_id'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Organization ID is required']);
+                return;
+            }
+
+            if (!isset($data['created_by']) || empty($data['created_by'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Creator information is required']);
+                return;
+            }
+
+            // Get authenticated user for audit creation
+            $userData = AuthMiddleware::getAuthenticatedUser();
+            
+            try {
+                // Get organization name for company_name
+                $stmt = $this->db->prepare("SELECT name FROM organizations WHERE id = ?");
+                $stmt->execute([$data['organization_id']]);
+                $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$organization) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Organization not found']);
+                    return;
+                }
+
+                // Create a title for the audit based on the request type
+                $title = 'Audit na míru';
+                
+                // Create the audit with the custom request data
+                $auditData = [
+                    'title' => $title,
+                    'company_name' => $organization['name'],
+                    'organization' => $data['organization_id'],
+                    'type' => 'public', // Custom requests are always public
+                    'status' => 'requested', // Mark as requested status
+                    'description' => $data['request'],
+                    'employee_count_limit' => 0,
+                    'ai_system' => $data['template'] ?? 'custom-request',
+                    'ai_prompt' => null,
+                    'audit_data' => [
+                        'request' => $data['request'],
+                        'created_by' => $data['created_by'],
+                        'template' => $data['template'] ?? 'custom-request'
+                    ]
+                ];
+
+                $uuid = $this->audit->create($auditData);
+                
+                if ($uuid) {
+                    // Log creation
+                    error_log("Custom request audit created with UUID: " . $uuid);
+                    
+                    // Send notification to Google Chat
+                    try {
+                        $this->googleChat->sendCustomRequestNotification(
+                            $title,
+                            $organization['name'],
+                            $data['created_by']['name'] ?? 'Unknown User',
+                            $data['request'],
+                            $uuid
+                        );
+                        error_log("Google Chat notification sent for custom request: " . $uuid);
+                    } catch (Exception $e) {
+                        // Just log the error but don't fail the request
+                        error_log("Failed to send Google Chat notification: " . $e->getMessage());
+                    }
+                    
+                    echo json_encode([
+                        'message' => 'Custom request created successfully',
+                        'data' => [
+                            'uuid' => $uuid
+                        ]
+                    ]);
+                } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => 'Failed to create custom request']);
+                }
+            } catch (Exception $e) {
+                error_log("Error creating custom request: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+                http_response_code(500);
+                echo json_encode([
+                    'error' => 'Failed to create custom request',
+                    'message' => $e->getMessage()
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log("Error in AuditController@request: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
 }

@@ -636,13 +636,14 @@ class Audit {
                 company_name,
                 organization,
                 type,
+                status,
                 description,
                 employee_count_limit,
                 ai_system,
                 ai_prompt,
                 audit_data
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )";
 
             $stmt = $this->db->prepare($sql);
@@ -652,6 +653,7 @@ class Audit {
                 $data['company_name'],
                 $data['organization'],
                 $data['type'],
+                $data['status'] ?? 'active', // Default to active if not specified
                 $data['description'],
                 $data['employee_count_limit'],
                 $data['ai_system'],
