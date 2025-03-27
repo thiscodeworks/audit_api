@@ -673,55 +673,20 @@ class AuditController {
                 return;
             }
 
-            // Base HTML template
-            $baseTemplate = '<div class="max-w-2xl mx-auto p-4 space-y-4">
-                <div class="text-center space-y-2">
-                    <img src="/uploads/organizations/{{organization_id}}/logo.png" alt="{{company_name}} Logo" class="h-12 mx-auto mb-4">
-                    <h1 class="text-2xl font-bold">{{welcome_title}}</h1>
-                    <p class="text-lg text-gray-600">{{welcome_subtitle}}</p>
-                </div>
-
-                <div class="bg-white border rounded-lg shadow-sm">
-                    <div class="p-4">
-                        <h2 class="text-xl font-semibold mb-2">O auditu</h2>
-                        <div class="space-y-2 text-sm">
-                            <p>{{audit_description}}</p>
-                            <div class="flex items-center space-x-2 text-gray-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>Doba trvání: {{duration}}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border rounded-lg shadow-sm">
-                    <div class="p-4">
-                        <h2 class="text-xl font-semibold mb-2">Oblasti auditu</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                            {{audit_areas}}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-gray-600 text-white rounded-lg shadow-sm" style="background-color: #323232;">
-                    <div class="p-4">
-                        <p class="text-base mb-3 text-center">{{cta_text}}</p>
-                        <button class="w-full py-3 px-4 bg-white text-blue-600 rounded-md text-lg font-semibold flex items-center justify-center">
-                            {{button_text}}
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="space-y-2 text-center text-xs text-gray-600">
-                    <p>{{thank_you_text}}</p>
-                    <p>{{privacy_text}}</p>
-                </div>
-            </div>';
+            // Base HTML template - updated to match the new UI
+            $baseTemplate = '<div class="flex flex-col px-0">
+            <h3 class="tracking-tight text-2xl font-bold text-primary mb-2 mt-0">{{welcome_title}}</h3>
+            <p class="text-sm text-muted-foreground">{{welcome_subtitle}}</p>
+        </div>
+        <div class="space-y-6">
+            <p>{{audit_description}}</p>
+            <section>
+                <h2 class="text-lg font-semibold mb-4 text-primary">Klíčové oblasti auditu:</h2>
+                <ul class="space-y-3 p-0 m-0 items-center">
+                    {{audit_areas}}
+                </ul>
+            </section>
+        </div>';
 
             // Prepare the prompt for Anthropic
             $prompt = "You are a helpful assistant that generates customized welcome pages for workplace audits. 
@@ -738,13 +703,11 @@ class AuditController {
             - audit_description: Detailed description of the audit
             - duration: Estimated duration (based on number of questions)
             - audit_areas: Array of key areas based on the questions (maximum 8 areas)
-            - cta_text: Call to action text
-            - button_text: Button text
-            - thank_you_text: Thank you message
-            - privacy_text: Privacy notice
 
             Keep the tone professional but friendly, and make sure the content is in Czech language.
-            The audit_areas should be derived from and related to the questions provided.";
+            The audit_areas should be derived from and related to the questions provided.
+            
+            Respond ONLY with a valid JSON object with all the fields listed above.";
 
             // Get customized content from Anthropic
             $anthropicResponse = $this->anthropic->generateContent($prompt);
@@ -754,13 +717,42 @@ class AuditController {
                 throw new Exception("Failed to generate customized content");
             }
 
-            // Generate audit areas HTML
+            // Ensure all required fields are present with defaults
+            $requiredFields = [
+                'welcome_title' => 'Vítejte v našem auditu',
+                'welcome_subtitle' => 'Děkujeme za vaši účast',
+                'audit_description' => $data['description'],
+                'duration' => count($data['questions']) * 3 . '-' . count($data['questions']) * 5 . ' minut',
+                'audit_areas' => []
+            ];
+            
+            foreach ($requiredFields as $field => $defaultValue) {
+                if (!isset($customContent[$field])) {
+                    $customContent[$field] = $defaultValue;
+                    error_log("Using default value for missing field: {$field}");
+                }
+            }
+
+            // If audit_areas is empty or not an array, provide some defaults based on the title
+            if (empty($customContent['audit_areas']) || !is_array($customContent['audit_areas'])) {
+                $customContent['audit_areas'] = ['Zpětná vazba', 'Anonymní hlášení', 'Bezpečnost', 'Pracovní prostředí'];
+                error_log("Using default audit areas since none were provided");
+            }
+
+            // Generate audit areas HTML with svg icons similar to the new template
             $areasHtml = '';
-            foreach ($customContent['audit_areas'] as $area) {
-                $areasHtml .= '<div class="flex items-center space-x-2">
-                    <div class="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                    <span>' . htmlspecialchars($area) . '</span>
-                </div>';
+            $icons = [
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users w-5 h-5 text-primary mr-3"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-target w-5 h-5 text-primary mr-3"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map w-5 h-5 text-primary mr-3"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" x2="9" y1="3" y2="18"></line><line x1="15" x2="15" y1="6" y2="21"></line></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-barrier-block w-5 h-5 text-primary mr-3"><rect x="4" y="2" width="16" height="20" rx="2"></rect><path d="M4 14h16"></path><path d="M4 18h16"></path><path d="M4 10h16"></path><path d="M4 6h16"></path></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-todo w-5 h-5 text-primary mr-3"><rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up w-5 h-5 text-primary mr-3"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>'
+            ];
+
+            foreach ($customContent['audit_areas'] as $index => $area) {
+                $iconIndex = $index % count($icons);
+                $areasHtml .= '<li class="flex items-center">' . $icons[$iconIndex] . '<span class="pl-2">' . htmlspecialchars($area) . '</span></li>';
             }
 
             // Replace placeholders in template
@@ -772,11 +764,7 @@ class AuditController {
                     '{{welcome_subtitle}}',
                     '{{audit_description}}',
                     '{{duration}}',
-                    '{{audit_areas}}',
-                    '{{cta_text}}',
-                    '{{button_text}}',
-                    '{{thank_you_text}}',
-                    '{{privacy_text}}'
+                    '{{audit_areas}}'
                 ],
                 [
                     htmlspecialchars($organization['name']),
@@ -785,11 +773,7 @@ class AuditController {
                     htmlspecialchars($customContent['welcome_subtitle']),
                     htmlspecialchars($customContent['audit_description']),
                     htmlspecialchars($customContent['duration']),
-                    $areasHtml,
-                    htmlspecialchars($customContent['cta_text']),
-                    htmlspecialchars($customContent['button_text']),
-                    htmlspecialchars($customContent['thank_you_text']),
-                    htmlspecialchars($customContent['privacy_text'])
+                    $areasHtml
                 ],
                 $baseTemplate
             );
@@ -1019,16 +1003,119 @@ class AuditController {
             $data = json_decode(file_get_contents('php://input'), true);
             error_log("Prompt received data: " . json_encode($data));
 
-            // For now, just log the request and return success
-            // In the future, this could process the data to generate a custom prompt
+            // Check if uuid is provided as audit_uuid instead
+            if (isset($data['audit_uuid']) && !isset($data['uuid'])) {
+                $data['uuid'] = $data['audit_uuid'];
+            }
 
-            echo json_encode([
-                'success' => true,
-                'message' => 'Prompt request received successfully',
-                'data' => [
-                    'status' => 'processed'
-                ]
-            ]);
+            // Validate required fields
+            $requiredFields = ['title', 'description', 'type', 'organization_id', 'questions', 'uuid'];
+            foreach ($requiredFields as $field) {
+                if (!isset($data[$field])) {
+                    http_response_code(400);
+                    echo json_encode(['error' => "Missing required field: {$field}"]);
+                    return;
+                }
+            }
+
+            // Verify the audit UUID exists
+            $auditCheck = $this->audit->getByUuid($data['uuid']);
+            if (!$auditCheck) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Audit not found with provided UUID']);
+                return;
+            }
+
+            // Get organization details for company name
+            $stmt = $this->db->prepare("SELECT name FROM organizations WHERE id = ?");
+            $stmt->execute([$data['organization_id']]);
+            $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$organization) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Organization not found']);
+                return;
+            }
+
+            // Prepare audit data for the prompt generator
+            $auditData = [
+                'title' => $data['title'],
+                'description' => $data['description'],
+                'type' => $data['type'],
+                'company_name' => $organization['name'],
+                'organization_name' => $organization['name'],
+                'questions' => $data['questions'],
+                // Include additional data if available
+                'employee_count_limit' => $data['employee_count_limit'] ?? 0,
+                'template' => $data['template'] ?? null
+            ];
+
+            // Load the PromptGeneratorService
+            require_once __DIR__ . '/../services/PromptGeneratorService.php';
+            $promptGenerator = new PromptGeneratorService();
+
+            // Generate the prompt
+            $result = $promptGenerator->generateAuditPrompt($auditData);
+
+            if ($result['success'] || isset($result['prompt'])) {
+                // Get the prompt from result - either from a successful generation or fallback
+                $promptXml = isset($result['prompt']) ? $result['prompt'] : '';
+                
+                // Update the audit with the generated prompt
+                try {
+                    // Update the audit with the new ai_system (prompt) and description
+                    $updateStmt = $this->db->prepare("
+                        UPDATE audits 
+                        SET ai_system = ?, ai_prompt = ?
+                        WHERE uuid = ?
+                    ");
+                    
+                    $updateResult = $updateStmt->execute([
+                        $promptXml,                      // ai_system field (for XML prompt)
+                        $data['description'] ?? null,    // ai_prompt field (for description)
+                        $data['uuid']                    // audit UUID
+                    ]);
+                    
+                    if (!$updateResult) {
+                        throw new Exception("Failed to update audit with the generated prompt");
+                    }
+                    
+                    error_log("Successfully updated audit {$data['uuid']} with the generated prompt");
+                    
+                    // Return the successful response with the prompt
+                    $responseData = [
+                        'success' => true,
+                        'message' => 'Prompt generated and saved successfully',
+                        'data' => [
+                            'prompt' => $promptXml,
+                            'uuid' => $data['uuid']
+                        ]
+                    ];
+                    
+                    // Add warning if this was a fallback prompt
+                    if (!$result['success'] && isset($result['error'])) {
+                        $responseData['data']['warning'] = $result['error'];
+                        $responseData['message'] = 'Generated fallback prompt (Claude generation failed)';
+                    }
+                    
+                    echo json_encode($responseData);
+                } catch (Exception $dbException) {
+                    error_log("Database error saving prompt: " . $dbException->getMessage());
+                    http_response_code(500);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Failed to save the prompt to the database',
+                        'message' => $dbException->getMessage()
+                    ]);
+                }
+            } else {
+                // Only return error if both main and fallback failed
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => $result['error']
+                ]);
+            }
         } catch (Exception $e) {
             error_log("Error in AuditController@prompt: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
