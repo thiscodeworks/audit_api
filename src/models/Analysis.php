@@ -79,9 +79,9 @@ class Analysis {
                 WHERE c.state = 'open'
                 GROUP BY c.id
                 HAVING (
-                    (last_analysis_at IS NULL AND user_message_count > 0)
+                    (last_analysis_at IS NULL AND user_message_count > 1)
                     OR 
-                    (last_message_at > last_analysis_at AND user_message_count > 0)
+                    (last_message_at > last_analysis_at AND user_message_count > 1)
                 )
                 ORDER BY COALESCE(last_analysis_at, '1970-01-01') ASC, last_message_at ASC
                 LIMIT 1

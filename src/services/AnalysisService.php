@@ -104,9 +104,37 @@ Respond ONLY with the JSON object, no additional text.";
             if (json_last_error() !== JSON_ERROR_NONE) {
                 error_log("Error parsing Anthropic response: " . json_last_error_msg());
                 error_log("Raw response: " . $response);
+                
+                // Get chat ID from UUID even if parsing failed
+                $stmt = Database::getInstance()->prepare("SELECT id FROM chats WHERE uuid = ?");
+                $stmt->execute([$chatUuid]);
+                $chat = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$chat) {
+                    return [
+                        'success' => false,
+                        'error' => 'Chat not found'
+                    ];
+                }
+                
+                // Create a placeholder analysis record with null values
+                $this->analysis->create(
+                    $chat['id'],
+                    null,  // sentiment
+                    null,  // summary
+                    null,  // keyfindings
+                    null,  // tags
+                    null,  // topics
+                    null,  // customer_satisfaction
+                    null,  // agent_effectiveness
+                    null,  // improvements
+                    null   // conversation_quality
+                );
+                
                 return [
                     'success' => false,
-                    'error' => 'Failed to parse analysis response'
+                    'error' => 'Failed to parse analysis response'.$response,
+                    'message' => 'Analysis record created with null values'
                 ];
             }
 
@@ -277,7 +305,7 @@ Respond ONLY with the JSON object, no additional text.";
                     error_log("Raw response: " . $response);
                     return [
                         'success' => false,
-                        'error' => 'Failed to parse analysis response'
+                        'error' => 'Failed to parse analysis response: '.$response
                     ];
                 }
 
@@ -515,10 +543,10 @@ Respond ONLY with the JSON object, no additional text.";
             $db = Database::getInstance();
 
             // Get all analyzed chats for this audit
-            $query = "SELECT a.keyfindings, a.sentiment, a.tags, c.id as chat_id
+            $query = "SELECT a.summary, a.keyfindings, a.sentiment, a.tags, a.topics, c.id as chat_id
                      FROM `analyze` a
                      JOIN chats c ON a.chat = c.id
-                     WHERE c.audit_uuid = ?";
+                     WHERE c.audit_uuid = ? AND `a`.`tags` IS NOT NULL";
             
             $stmt = $db->prepare($query);
             $stmt->execute([$auditUuid]);
@@ -556,39 +584,49 @@ Respond ONLY with the JSON object, no additional text.";
                 // Create a prompt for Claude to analyze and group the findings
                 $findingsText = "";
                 $tagsText = "";
+                $topicsText = "";
+                $chatSummaries = "";
                 $chatMapping = [];
                 foreach ($analyses as $index => $analysis) {
                     $findingsText .= "- Finding #{$index}: " . $analysis['keyfindings'] . " (Sentiment: " . $analysis['sentiment'] . ")\n";
                     if (!empty($analysis['tags'])) {
-                        $tagsText .= "- Tags for finding #{$index}: " . $analysis['tags'] . "\n";
+                        $tagsText .= "- Tags for finding #{$index}: Chat #{$analysis['chat_id']}: " . $analysis['tags'] . "\n";
+                    }
+                    if (!empty($analysis['topics'])) {
+                        $topicsText .= "- Topics for finding #{$index}: Chat #{$analysis['chat_id']}: " . $analysis['topics'] . "\n";
+                    }
+                    if (!empty($analysis['summary'])) {
+                        $chatSummaries .= "- Chat summary #{$index}: Chat #{$analysis['chat_id']}: " . $analysis['summary'] . "\n";
                     }
                     $chatMapping[$index] = $analysis['chat_id'];
                 }
 
                 $prompt = "You are an expert audit analyzer. Your task is to analyze the following key findings from an audit and create a structured presentation in Czech.
 
+                Chat summaries: 
+                $chatSummaries
 Key Findings:
 $findingsText
 
 Tags:
 $tagsText
 
+Topics: 
+$topicsText
+
 Instructions:
-1. Group the findings into logical categories
+1. Group the topics / findings into logical categories
 2. For each finding:
    - Assess its severity (must be exactly one of: low, medium, high)
+   - Describe the finding in clear, professional Czech
    - Provide specific, actionable recommendations in clear, professional Czech
-3. Create an executive summary in clear, professional Czech
+3. Create an executive summary for each topic group in clear, professional Czech
 4. Format everything in the exact JSON structure shown below
 5. Each group should have at least 3 findings
 6. If there is enough data, create as more groups you can
-7. The home slide should be a summary of the findings, only paragrapsh using maximum italic / strong tags
-
+7. Group the tags to the tags cloud, with weight of the tag based on the number of times it appears in the findings
 Respond with ONLY the following JSON structure, no other text:
 {
-    \"home_slide\": {
-        \"html_content\": \"<div class='executive-summary'><p>Přehled hlavních zjištění...</p></div>\"
-    },
     \"slides\": [
         {
             \"name\": \"Název kategorie\",
@@ -596,17 +634,28 @@ Respond with ONLY the following JSON structure, no other text:
             \"findings\": [
                 {
                     \"title\": \"Jasný název zjištění\",
+                    \"description\": \"Stručný popis zjištění\",
                     \"severity\": \"low\",
-                    \"recommendation\": \"Jasné, proveditelné doporučení\"
+                    \"recommendation\": \"Jasné, proveditelné doporučení\",
+                    \"chat_id\": [0, 1, 2]
                 }
             ]
+        }
+    ],
+    \"tags_cloud\": [
+        {
+            \"tag\": \"Tag1\",
+            \"weight\": 10
+        },
+        {
+            \"tag\": \"Tag2\"
+            \"weight\": 5
         }
     ]
 }
 
 Remember:
 - All content must be in clear, professional Czech
-- Use valid HTML in html_content
 - severity must be exactly 'low', 'medium', or 'high'
 - Make the analysis professional and insightful";
 
@@ -619,29 +668,116 @@ Remember:
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     error_log("JSON parse error: " . json_last_error_msg());
                     error_log("Failed to parse response: " . $response);
-                    return [
-                        'success' => false,
-                        'error' => 'Failed to parse analysis response: ' . json_last_error_msg()
-                    ];
+                    
+                    // Create a fallback slide with error information
+                    try {
+                        // Begin transaction if not already in one
+                        if (!$db->inTransaction()) {
+                            $db->beginTransaction();
+                        }
+                        
+                        // Create a simple home slide explaining the error
+                        $errorContent = "<div class='audit-error'><p>Omlouváme se, ale při analýze auditu došlo k chybě při zpracování výsledků. Prosím kontaktujte podporu.</p><p>Error: Failed to parse analysis response</p></div>";
+                        $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
+                                         VALUES (?, 'Home', 'Error Summary', 1, ?, 0)";
+                        $stmt = $db->prepare($homeSlideQuery);
+                        $stmt->execute([$audit['id'], $errorContent]);
+                        
+                        // Create a single slide with error information
+                        $slideQuery = "INSERT INTO audit_slides (audit_id, name, description, order_index) 
+                                     VALUES (?, 'Chyba analýzy', 'Při analýze auditu došlo k chybě', 1)";
+                        $stmt = $db->prepare($slideQuery);
+                        $stmt->execute([$audit['id']]);
+                        $slideId = $db->lastInsertId();
+                        
+                        // Add one finding with the error
+                        $findingQuery = "INSERT INTO audit_findings (slide_id, title, recommendation, severity, order_index) 
+                                       VALUES (?, ?, ?, ?, ?)";
+                        $stmt = $db->prepare($findingQuery);
+                        $stmt->execute([
+                            $slideId,
+                            'Chyba při analýze',
+                            'Kontaktujte podporu pro další pomoc.',
+                            'high',
+                            0
+                        ]);
+                        
+                        $db->commit();
+                        
+                        return [
+                            'success' => false,
+                            'error' => 'Failed to parse analysis response: ' . $response,
+                            'message' => 'Created placeholder slides with error information'
+                        ];
+                    } catch (Exception $innerException) {
+                        if ($db->inTransaction()) {
+                            $db->rollBack();
+                        }
+                        throw $innerException;
+                    }
                 }
 
                 // Validate the required structure
-                if (!isset($analysisResult['home_slide']) || !isset($analysisResult['slides'])) {
+                if (!isset($analysisResult['slides'])) {
                     error_log("Invalid response structure: " . json_encode($analysisResult));
-                    return [
-                        'success' => false,
-                        'error' => 'Invalid analysis response structure'
-                    ];
+                    
+                    // Create a fallback slide with error information
+                    try {
+                        // Begin transaction if not already in one
+                        if (!$db->inTransaction()) {
+                            $db->beginTransaction();
+                        }
+                        
+                        // Create a simple home slide explaining the error
+                        $errorContent = "<div class='audit-error'><p>Omlouváme se, ale při analýze auditu došlo k chybě ve struktuře výsledků. Prosím kontaktujte podporu.</p><p>Error: Invalid analysis response structure</p></div>";
+                        $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
+                                         VALUES (?, 'Home', 'Error Summary', 1, ?, 0)";
+                        $stmt = $db->prepare($homeSlideQuery);
+                        $stmt->execute([$audit['id'], $errorContent]);
+                        
+                        // Create a single slide with error information
+                        $slideQuery = "INSERT INTO audit_slides (audit_id, name, description, order_index) 
+                                     VALUES (?, 'Chyba analýzy', 'Při analýze auditu došlo k chybě', 1)";
+                        $stmt = $db->prepare($slideQuery);
+                        $stmt->execute([$audit['id']]);
+                        $slideId = $db->lastInsertId();
+                        
+                        // Add one finding with the error
+                        $findingQuery = "INSERT INTO audit_findings (slide_id, title, recommendation, severity, order_index) 
+                                       VALUES (?, ?, ?, ?, ?)";
+                        $stmt = $db->prepare($findingQuery);
+                        $stmt->execute([
+                            $slideId,
+                            'Chyba ve struktuře analýzy',
+                            'Kontaktujte podporu pro další pomoc.',
+                            'high',
+                            0
+                        ]);
+                        
+                        $db->commit();
+                        
+                        return [
+                            'success' => false,
+                            'error' => 'Invalid analysis response structure',
+                            'message' => 'Created placeholder slides with error information'
+                        ];
+                    } catch (Exception $innerException) {
+                        if ($db->inTransaction()) {
+                            $db->rollBack();
+                        }
+                        throw $innerException;
+                    }
                 }
 
-                // Create home slide
-                $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
-                                 VALUES (?, 'Home', 'Executive Summary', 1, ?, 0)";
-                $stmt = $db->prepare($homeSlideQuery);
-                $stmt->execute([$audit['id'], $analysisResult['home_slide']['html_content']]);
-
                 // Create category slides and findings
+                $allFindings = [];
+                $slideTitles = [];
+                $severityCounts = ['low' => 0, 'medium' => 0, 'high' => 0];
+                
                 foreach ($analysisResult['slides'] as $index => $slide) {
+                    // Store slide information for home slide generation
+                    $slideTitles[] = $slide['name'];
+                    
                     // Create slide
                     $slideQuery = "INSERT INTO audit_slides (audit_id, name, description, order_index) 
                                  VALUES (?, ?, ?, ?)";
@@ -651,6 +787,10 @@ Remember:
 
                     // Create findings for this slide
                     foreach ($slide['findings'] as $findingIndex => $finding) {
+                        // Track findings for home slide
+                        $allFindings[] = $finding;
+                        $severityCounts[$finding['severity']]++;
+                        
                         // Insert finding
                         $findingQuery = "INSERT INTO audit_findings (slide_id, title, recommendation, severity, order_index) 
                                        VALUES (?, ?, ?, ?, ?)";
@@ -674,6 +814,65 @@ Remember:
                                     $stmt->execute([$findingId, $chatMapping[$chatIndex]]);
                                 }
                             }
+                        }
+                    }
+                }
+                
+                // Now create the home slide based on the generated content
+                $homeSlidePrompt = "You are an expert audit analyzer. Based on the following audit slides and findings, create a comprehensive executive summary in Czech language. This will be the home slide for the audit presentation.
+
+Slides Categories:
+" . implode(", ", $slideTitles) . "
+
+Total findings: " . count($allFindings) . "
+Severity distribution:
+- High severity: {$severityCounts['high']}
+- Medium severity: {$severityCounts['medium']}
+- Low severity: {$severityCounts['low']}
+
+Key findings:
+";
+
+                foreach ($allFindings as $finding) {
+                    $severity = ucfirst($finding['severity']);
+                    $homeSlidePrompt .= "- [{$severity}] {$finding['title']}: {$finding['recommendation']}\n";
+                }
+
+                $homeSlidePrompt .= "
+Instructions:
+1. Create a comprehensive executive summary in clear, professional Czech
+2. Highlight the most important findings (especially high severity ones)
+3. Include an overall assessment of the situation
+4. Format as HTML content with appropriate formatting (paragraphs, emphasis for important points) but dont use headings
+5. Use tailwind classes for styling
+6. Make it professional and insightful
+7. Prepare it as perex, key findings and overall assessment, recommendations
+
+Respond with ONLY the HTML content for the home slide, no other text.";
+
+                // Get home slide content from Anthropic
+                $homeSlideResponse = $this->anthropic->analyze($homeSlidePrompt);
+                
+                // Create home slide
+                $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
+                                 VALUES (?, 'Home', 'Executive Summary', 1, ?, 0)";
+                $stmt = $db->prepare($homeSlideQuery);
+                $stmt->execute([$audit['id'], $homeSlideResponse]);
+                
+                // Save tags cloud data
+                if (isset($analysisResult['tags_cloud']) && !empty($analysisResult['tags_cloud'])) {
+                    // Delete existing tags for this audit
+                    $deleteTagsQuery = "DELETE FROM audit_tags_cloud WHERE audit_id = ?";
+                    $stmt = $db->prepare($deleteTagsQuery);
+                    $stmt->execute([$audit['id']]);
+                    
+                    // Insert new tags
+                    $insertTagQuery = "INSERT INTO audit_tags_cloud (audit_id, tag, weight) VALUES (?, ?, ?)";
+                    $stmt = $db->prepare($insertTagQuery);
+                    
+                    foreach ($analysisResult['tags_cloud'] as $tag) {
+                        if (isset($tag['tag']) && isset($tag['weight'])) {
+                            $stmt->execute([$audit['id'], $tag['tag'], $tag['weight']]);
                         }
                     }
                 }

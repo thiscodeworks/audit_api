@@ -340,6 +340,19 @@ class AuditController {
                 });
             }
 
+            // Get tags cloud data
+            $tagsQuery = "
+                SELECT 
+                    tag,
+                    weight
+                FROM audit_tags_cloud
+                WHERE audit_id = (SELECT id FROM audits WHERE uuid = ?)
+                ORDER BY weight DESC";
+            
+            $stmt = $db->prepare($tagsQuery);
+            $stmt->execute([$uuid]);
+            $tags = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             $isAssignType = $stats['type'] === 'assign';
             $totalAssigned = $isAssignType ? (int)$stats['total_assigned_users'] : (int)$stats['total_active_users'];
             $totalFilled = (int)$stats['total_active_users'];
@@ -362,7 +375,8 @@ class AuditController {
                             'low' => (int)$analysisStats['low_severity']
                         ],
                         'summary' => $analysisStats['summary'],
-                        'categories' => $categories
+                        'categories' => $categories,
+                        'tags_cloud' => $tags
                     ] : null
                 ]
             ]);
