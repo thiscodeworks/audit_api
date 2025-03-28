@@ -214,11 +214,11 @@ class AnthropicService {
 
     public function analyzeAuditWithSonnet($prompt, $isJson = false) {
         $systemPrompt = $isJson 
-            ? 'IMPORTANT: You are in JSON-ONLY mode. You MUST only respond with valid JSON. Do not include ANY explanatory text, markdown, code blocks, or any content that is not part of the valid JSON response. Your response must be parseable by json_decode() without any processing. Never respond with "I understand" or similar phrases. Always start your response with { and end with }. Create a comprehensive analysis with AT LEAST 8-10 topic slides and AT LEAST 4-6 findings per topic.'
+            ? 'IMPORTANT: You are in JSON-ONLY mode. You MUST only respond with valid JSON. Do not include ANY explanatory text, markdown, code blocks, or any content that is not part of the valid JSON response. Your response must be parseable by json_decode() without any processing. Never respond with "I understand" or similar phrases. Always start your response with { and end with }. Create a comprehensive analysis with AT LEAST 8-10 topic slides and AT LEAST 4-6 findings per topic. All topic descriptions must be at least 400 characters, all finding descriptions at least 300 characters, and all recommendations at least 400 characters with specific, actionable steps.'
             : 'IMPORTANT: You are in HTML-ONLY mode. You MUST only respond with valid HTML content exactly matching the structure provided in the prompt. Do not include ANY explanatory text, markdown, code blocks, or any content that is not part of the HTML response. Never respond with "I understand" or similar phrases. Never wrap your response in ```html or any other code block markers. Start directly with <div> and end with </div>. Keep all class names, attributes, and SVG elements exactly as specified.';
             
         $data = [
-            'model' => 'claude-3-5-sonnet-20241022',
+            'model' => 'claude-3-7-sonnet-20250219',
             'max_tokens' => 8192,
             'messages' => [
                 ['role' => 'user', 'content' => $prompt]
