@@ -67,6 +67,15 @@ class AnalysisService {
     }
 }
 
+IMPORTANT INSTRUCTIONS:
+- Do not ask any questions or provide explanations in your response.
+- Do not ask for clarification on how to proceed. 
+- Always generate the complete JSON response directly.
+- Generate the full response regardless of the conversation length.
+- Do not share your reasoning or thought process - ONLY output the final JSON.
+- NEVER mention the amount of data, messages, or conversation length.
+- Do not include any text outside the JSON structure.
+q
 The sentiment score should be 0-100 where:
 - 0-30: Velmi negativní
 - 31-45: Negativní
@@ -266,6 +275,15 @@ Respond ONLY with the JSON object, no additional text.";
     }
 }
 
+IMPORTANT INSTRUCTIONS:
+- Do not ask any questions or provide explanations in your response.
+- Do not ask for clarification on how to proceed. 
+- Always generate the complete JSON response directly.
+- Generate the full response regardless of the conversation length.
+- Do not share your reasoning or thought process - ONLY output the final JSON.
+- NEVER mention the amount of data, messages, or conversation length.
+- Do not include any text outside the JSON structure.
+
 The sentiment score should be 0-100 where:
 - 0-30: Velmi negativní
 - 31-45: Negativní
@@ -303,9 +321,25 @@ Respond ONLY with the JSON object, no additional text.";
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     error_log("Error parsing Anthropic response: " . json_last_error_msg());
                     error_log("Raw response: " . $response);
+                    
+                    // Create a placeholder analysis record with null values
+                    $this->analysis->create(
+                        $chat['chat_id'],
+                        null,  // sentiment
+                        null,  // summary
+                        null,  // keyfindings
+                        null,  // tags
+                        null,  // topics
+                        null,  // customer_satisfaction
+                        null,  // agent_effectiveness
+                        null,  // improvements
+                        null   // conversation_quality
+                    );
+                    
                     return [
                         'success' => false,
-                        'error' => 'Failed to parse analysis response: '.$response
+                        'error' => 'Failed to parse analysis response: ' . json_last_error_msg() . '. Raw response: ' . substr($response, 0, 1000),
+                        'message' => 'Analysis record created with null values'
                     ];
                 }
 
@@ -614,18 +648,30 @@ $tagsText
 Topics: 
 $topicsText
 
-Instructions:
-1. Group the topics / findings into logical categories
-2. For each finding:
+EXTREMELY IMPORTANT - YOU MUST RESPOND WITH ONLY JSON:
+- YOUR RESPONSE MUST START WITH { AND END WITH }
+- DO NOT INCLUDE ANY TEXT BEFORE OR AFTER THE JSON
+- DO NOT SAY 'I UNDERSTAND' OR ASK QUESTIONS
+- DO NOT EXPLAIN WHAT YOU'RE DOING
+- DO NOT USE MARKDOWN CODE BLOCKS
+- NEVER WRITE ANYTHING EXCEPT THE RAW JSON OBJECT
+
+Instructions for analysis:
+1. CREATE AT LEAST 8-10 TOPIC SLIDES for these findings - be comprehensive and thorough
+2. Each topic should have AT LEAST 4-6 FINDINGS - don't be minimalistic
+3. Group the topics/findings into logical categories, but prioritize detail and comprehensive coverage
+4. For each finding:
    - Assess its severity (must be exactly one of: low, medium, high)
    - Describe the finding in clear, professional Czech
    - Provide specific, actionable recommendations in clear, professional Czech
-3. Create an executive summary for each topic group in clear, professional Czech
-4. Format everything in the exact JSON structure shown below
-5. Each group should have at least 3 findings
-6. If there is enough data, create as more groups you can
-7. Group the tags to the tags cloud, with weight of the tag based on the number of times it appears in the findings
-Respond with ONLY the following JSON structure, no other text:
+5. Create an executive summary for each topic group in clear, professional Czech
+6. Format everything in the exact JSON structure shown below
+7. Be exhaustive - with 100 chats, there should be at least 40-50 total findings across all slides
+8. Find different angles and perspectives to create more detailed findings
+9. Split larger topics into multiple more focused topics when possible
+10. Group the tags to the tags cloud, with weight of the tag based on the number of times it appears in the findings
+
+YOUR ENTIRE RESPONSE MUST BE THIS JSON STRUCTURE, WITH NO OTHER TEXT:
 {
     \"slides\": [
         {
@@ -648,19 +694,23 @@ Respond with ONLY the following JSON structure, no other text:
             \"weight\": 10
         },
         {
-            \"tag\": \"Tag2\"
+            \"tag\": \"Tag2\",
             \"weight\": 5
         }
     ]
 }
 
-Remember:
+Rules for your JSON response:
 - All content must be in clear, professional Czech
 - severity must be exactly 'low', 'medium', or 'high'
-- Make the analysis professional and insightful";
+- BE COMPREHENSIVE - create at least 8-10 topic slides with 4-6 findings each
+- Find multiple aspects and angles within the data to create detailed coverage
+- Look for subtle patterns and insights that could form additional topics
+- Don't be afraid to get specific and detailed with your findings
+- YOUR ENTIRE RESPONSE MUST BE VALID JSON STARTING WITH { AND ENDING WITH }";
 
                 // Get analysis from Anthropic
-                $response = $this->anthropic->analyze($prompt);
+                $response = $this->anthropic->analyzeAuditWithSonnet($prompt, true);
                 error_log("Raw Claude response: " . $response);
                 
                 $analysisResult = json_decode($response, true);
@@ -706,7 +756,7 @@ Remember:
                         
                         return [
                             'success' => false,
-                            'error' => 'Failed to parse analysis response: ' . $response,
+                            'error' => 'Failed to parse analysis response: ' . json_last_error_msg() . '. Raw response: ' . substr($response, 0, 1000),
                             'message' => 'Created placeholder slides with error information'
                         ];
                     } catch (Exception $innerException) {
@@ -758,7 +808,7 @@ Remember:
                         
                         return [
                             'success' => false,
-                            'error' => 'Invalid analysis response structure',
+                            'error' => 'Invalid analysis response structure. Raw response: ' . substr($response, 0, 1000),
                             'message' => 'Created placeholder slides with error information'
                         ];
                     } catch (Exception $innerException) {
@@ -839,19 +889,32 @@ Key findings:
                 }
 
                 $homeSlidePrompt .= "
-Instructions:
-1. Create a comprehensive executive summary in clear, professional Czech
-2. Highlight the most important findings (especially high severity ones)
-3. Include an overall assessment of the situation
-4. Format as HTML content with appropriate formatting (paragraphs, emphasis for important points) but dont use headings
-5. Use tailwind classes for styling
-6. Make it professional and insightful
-7. Prepare it as perex, key findings and overall assessment, recommendations
 
-Respond with ONLY the HTML content for the home slide, no other text.";
+EXTREMELY IMPORTANT - YOU MUST FOLLOW THESE RULES:
+- YOUR RESPONSE MUST BE PURE HTML CONTENT ONLY
+- DO NOT INCLUDE ANY TEXT BEFORE OR AFTER THE HTML
+- DO NOT SAY 'I UNDERSTAND' OR ASK QUESTIONS
+- DO NOT EXPLAIN WHAT YOU'RE DOING
+- DO NOT USE MARKDOWN CODE BLOCKS
+- NEVER WRITE ANYTHING EXCEPT THE RAW HTML CONTENT
+
+Instructions for content creation:
+1. Create a comprehensive, insightful executive summary that follows EXACTLY the HTML structure shown below
+2. Use the exact HTML structure with the same classes, divs, and SVG elements as shown in the example
+3. Replace only the text content with your analysis while keeping all HTML structure, classes and elements
+4. Keep the same three sections: Shrnutí, Klíčové zjištění, and Návrhy na zlepšení
+5. Your content should analyze the audit findings in professional Czech
+6. The summary should be concise but comprehensive
+7. Key findings should focus on the most important insights from across all topics
+8. Improvement suggestions should be specific and actionable
+
+EXACTLY COPY THIS HTML STRUCTURE AND ONLY REPLACE THE TEXT CONTENT:
+<div><h3 class=\"text-sm font-medium mb-2\">Shrnutí</h3><p class=\"text-sm\">[YOUR COMPREHENSIVE SUMMARY HERE - 2-3 SENTENCES ABOUT THE AUDIT FINDINGS]</p></div><div><div class=\"flex items-center mb-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-circle-check-big h-4 w-4 mr-2 text-green-500\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"></path><path d=\"m9 11 3 3L22 4\"></path></svg><h3 class=\"text-sm font-medium\">Klíčové zjištění</h3></div><div class=\"whitespace-pre-line text-sm\">[LIST 4-6 BULLET POINTS OF KEY FINDINGS, EACH STARTING WITH • ]</div></div><div><div class=\"flex items-center mb-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-circle-alert h-4 w-4 mr-2 text-amber-500\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"></line><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"></line></svg><h3 class=\"text-sm font-medium\">Návrhy na zlepšení</h3></div><div class=\"whitespace-pre-line text-sm\">[LIST 3-5 BULLET POINTS OF IMPROVEMENT SUGGESTIONS, EACH STARTING WITH • ]</div></div>
+
+YOUR ENTIRE RESPONSE MUST BE VALID HTML CONTENT THAT MATCHES THIS STRUCTURE EXACTLY. START DIRECTLY WITH <div> AND END WITH </div>.";
 
                 // Get home slide content from Anthropic
-                $homeSlideResponse = $this->anthropic->analyze($homeSlidePrompt);
+                $homeSlideResponse = $this->anthropic->analyzeAuditWithSonnet($homeSlidePrompt, false);
                 
                 // Create home slide
                 $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
