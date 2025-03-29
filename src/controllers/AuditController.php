@@ -290,6 +290,7 @@ class AuditController {
                                     'id', f.id,
                                     'title', f.title,
                                     'recommendation', f.recommendation,
+                                    'description', f.description,
                                     'severity', f.severity,
                                     'order_index', f.order_index,
                                     'examples', COALESCE(
@@ -338,6 +339,18 @@ class AuditController {
                 usort($category['findings'], function($a, $b) {
                     return $a['order_index'] - $b['order_index'];
                 });
+                
+                // Process recommendations and descriptions to preserve newlines
+                foreach ($category['findings'] as &$finding) {
+                    if (isset($finding['recommendation'])) {
+                        // Convert newlines to <br> tags for proper HTML display
+                        $finding['recommendation'] = nl2br($finding['recommendation']);
+                    }
+                    if (isset($finding['description'])) {
+                        // Convert newlines to <br> tags for proper HTML display
+                        $finding['description'] = nl2br($finding['description']);
+                    }
+                }
             }
 
             // Get tags cloud data
