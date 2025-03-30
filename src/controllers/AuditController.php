@@ -1270,4 +1270,71 @@ class AuditController {
             ]);
         }
     }
+
+    // Debug method to check audit users by ID
+    public function debugAuditUsers($params) {
+        try {
+            $auditId = $params['id'];
+            
+            // Get basic audit info
+            $stmt = $this->db->prepare("
+                SELECT id, uuid, audit_name, type, organization
+                FROM audits
+                WHERE id = ?
+            ");
+            $stmt->execute([$auditId]);
+            $audit = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$audit) {
+                echo json_encode(['error' => 'Audit not found']);
+                return;
+            }
+            
+            // Get direct assignment data
+            $stmt = $this->db->prepare("
+                SELECT ua.*, u.name, u.email 
+                FROM users_audit ua
+                JOIN users u ON u.id = ua.user
+                WHERE ua.audit = ?
+            ");
+            $stmt->execute([$auditId]);
+            $directAssignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Get organization info
+            $stmt = $this->db->prepare("
+                SELECT id, name
+                FROM organizations
+                WHERE id = ?
+            ");
+            $stmt->execute([$audit['organization']]);
+            $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Get chat data
+            $stmt = $this->db->prepare("
+                SELECT c.id, c.uuid, c.user, u.name, u.email
+                FROM chats c
+                LEFT JOIN users u ON u.id = c.user
+                WHERE c.audit_uuid = ?
+            ");
+            $stmt->execute([$audit['uuid']]);
+            $chats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Get result from the normal getUsers method for comparison
+            $normalUsers = $this->audit->getUsers($audit['uuid']);
+            
+            echo json_encode([
+                'audit' => $audit,
+                'organization' => $organization,
+                'direct_assignments' => $directAssignments,
+                'chats' => $chats,
+                'normal_users_method' => $normalUsers
+            ]);
+        } catch (Exception $e) {
+            echo json_encode([
+                'error' => 'Server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
 }

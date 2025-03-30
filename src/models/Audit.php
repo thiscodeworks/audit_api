@@ -209,6 +209,31 @@ class Audit {
         try {
             // Get current user's organizations from JWT
             $userOrgs = $this->getCurrentUserOrganization();
+            
+            // Debug log
+            error_log("getUsers called for UUID: " . $uuid . ", user orgs: " . json_encode($userOrgs));
+
+            // First, verify the audit exists and get its ID
+            $auditStmt = $this->db->prepare("SELECT id, type, organization FROM audits WHERE uuid = ?");
+            $auditStmt->execute([$uuid]);
+            $auditInfo = $auditStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$auditInfo) {
+                error_log("Audit not found with UUID: " . $uuid);
+                return [];
+            }
+            
+            error_log("Found audit: " . json_encode($auditInfo));
+            
+            // Direct query to check assigned users
+            $directStmt = $this->db->prepare("
+                SELECT ua.user, ua.code, ua.view, ua.invite, ua.push
+                FROM users_audit ua
+                WHERE ua.audit = ?
+            ");
+            $directStmt->execute([$auditInfo['id']]);
+            $directAssignments = $directStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Direct users_audit query results: " . json_encode($directAssignments));
 
             $sql = "
                 WITH audit_data AS (
@@ -228,13 +253,12 @@ class Audit {
 
             $sql .= "),
                 audit_users AS (
-                    -- Get assigned users
+                    -- Get assigned users for all audit types (not just 'assign')
                     SELECT 
                         ua.user as user_id,
                         'assigned' as source
                     FROM audit_data ad
                     JOIN users_audit ua ON ua.audit = ad.audit_id
-                    WHERE ad.type = 'assign'
                     
                     UNION
                     
@@ -271,6 +295,9 @@ class Audit {
                 GROUP BY u.id, ua.code, ua.view, ua.invite, ua.push
                 ORDER BY u.name";
 
+            // Log the SQL and parameters
+            error_log("getUsers SQL: " . $sql);
+
             $stmt = $this->db->prepare($sql);
             
             if ($userOrgs && !empty($userOrgs)) {
@@ -280,13 +307,19 @@ class Audit {
                     $userOrgs,
                     [$uuid, $uuid]
                 );
+                error_log("getUsers params: " . json_encode($params));
                 $stmt->execute($params);
             } else {
+                error_log("getUsers params: " . json_encode([$uuid, $uuid, $uuid]));
                 $stmt->execute([$uuid, $uuid, $uuid]);
             }
 
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("getUsers results: " . json_encode($results));
+
+            return $results;
         } catch (PDOException $e) {
+            error_log("Error in getUsers: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             throw new Exception("Error fetching audit users: " . $e->getMessage());
         }
     }
@@ -566,8 +599,9 @@ class Audit {
                 return ['error' => 'Audit not found'];
             }
 
-            // Check if the audit is of type 'assign'
-            if ($audit['type'] !== 'assign') {
+            // Check if the audit type supports assignments
+            // Allow both 'assign' and 'public' audit types
+            if ($audit['type'] !== 'assign' && $audit['type'] !== 'public') {
                 return ['error' => 'This audit does not support user assignments'];
             }
 

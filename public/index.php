@@ -89,6 +89,9 @@ function registerRoutes($router) {
     $router->get('/analyze/chat/{uuid}/detail', 'AnalyzeController@getChatDetail');
     $router->get('/analyze/dashboard', 'AnalyzeController@getDashboardStats');
     $router->post('/analyze/audit/{uuid}', 'AnalyzeController@createAuditAnalysis',false);
+    
+    // Temporary debug endpoint
+    $router->get('/debug/audit/{id}/users', 'AuditController@debugAuditUsers', false);
 }
 
 // Register all routes
