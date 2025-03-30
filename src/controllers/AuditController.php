@@ -1155,4 +1155,119 @@ class AuditController {
             ]);
         }
     }
+
+    public function resend() {
+        try {
+            // Get data from request body
+            $data = json_decode(file_get_contents('php://input'), true);
+            error_log("Resend request data: " . json_encode($data));
+            
+            if (!isset($data['email']) || empty($data['email'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Email is required']);
+                return;
+            }
+            
+            $email = $data['email'];
+            
+            // Find user by email
+            $stmt = $this->db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found with this email address']);
+                return;
+            }
+            
+            error_log("Found user: " . json_encode($user));
+            
+            // Find active audits the user is assigned to
+            $stmt = $this->db->prepare("
+                SELECT 
+                    a.id, 
+                    a.uuid, 
+                    a.audit_name, 
+                    a.company_name,
+                    ua.code
+                FROM audits a
+                JOIN users_audit ua ON ua.audit = a.id
+                WHERE ua.user = ? 
+                AND a.status = 'active'
+                AND ua.blocked = 0
+            ");
+            
+            $stmt->execute([$user['id']]);
+            $audits = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            if (empty($audits)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'No active audits found for this user']);
+                return;
+            }
+            
+            error_log("Found active audits: " . json_encode($audits));
+            
+            // Send emails for each audit
+            $sentCount = 0;
+            foreach ($audits as $audit) {
+                // Prepare template data
+                $templateModel = [
+                    "action_url" => getenv('FRONTEND_URL') . "/audit/{$audit['uuid']}?code={$audit['code']}",
+                    "company" => $audit['company_name']
+                ];
+                
+                // Use the invitation template
+                $templateAlias = 'user-invitation';
+                $emailSubject = "Přístup k auditu: " . $audit['company_name'];
+                
+                error_log("Sending email for audit: " . $audit['audit_name'] . " to " . $email);
+                
+                try {
+                    // Send email using template
+                    $result = $this->postmark->sendTemplate(
+                        $email,
+                        $templateAlias,
+                        $templateModel,
+                        $emailSubject
+                    );
+                    
+                    error_log("Postmark result: " . json_encode($result));
+                    
+                    if ($result['success']) {
+                        $sentCount++;
+                        
+                        // Update user's email status in users_audit table (mark as invited)
+                        $this->audit->updateUserEmailStatus($audit['id'], $user['id'], 'invitation');
+                    }
+                } catch (Exception $e) {
+                    error_log("Error sending email for audit " . $audit['audit_name'] . ": " . $e->getMessage());
+                    // Continue with other audits even if one fails
+                }
+            }
+            
+            if ($sentCount > 0) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Access information sent to {$email} for {$sentCount} " . 
+                                 ($sentCount == 1 ? "audit" : "audits")
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode([
+                    'error' => 'Failed to send emails. Please try again later.'
+                ]);
+            }
+            
+        } catch (Exception $e) {
+            error_log("Error in AuditController@resend: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
 }

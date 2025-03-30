@@ -76,6 +76,7 @@ function registerRoutes($router) {
     $router->post('/audit/{uuid}/start', 'AuditController@start',false);
     $router->post('/audit/find', 'AuditController@find', false);
     $router->post('/audit/{uuid}/mail', 'AuditController@mail');
+    $router->post('/audit/resend', 'AuditController@resend', false);
 
     // Chat routes
     $router->get('/chat/list', 'ChatController@list');
