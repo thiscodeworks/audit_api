@@ -306,6 +306,13 @@ class Audit {
                         AND (is_hidden = 0 OR is_hidden IS NULL)
                     GROUP BY chat_uuid
                     HAVING COUNT(*) > 0
+                ),
+                latest_analyze AS (
+                    SELECT 
+                        a.chat,
+                        MAX(a.id) as latest_id
+                    FROM `analyze` a
+                    GROUP BY a.chat
                 )
                 SELECT 
                     c.id,
@@ -326,7 +333,9 @@ class Audit {
                 -- Join with user messages to ensure at least one user message exists
                 INNER JOIN user_messages um ON um.chat_uuid = c.uuid
                 LEFT JOIN messages m ON m.chat_uuid = c.uuid
-                LEFT JOIN `analyze` a ON a.chat = c.id
+                -- Join only with the latest analyze record for each chat
+                LEFT JOIN latest_analyze la ON la.chat = c.id
+                LEFT JOIN `analyze` a ON a.id = la.latest_id
                 WHERE au.uuid = ?";
 
             // Add organizations filter if user has organizations
