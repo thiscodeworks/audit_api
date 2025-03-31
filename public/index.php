@@ -71,6 +71,7 @@ function registerRoutes($router) {
     $router->post('/audit/preview', 'AuditController@preview');
     $router->post('/audit/prompt', 'AuditController@prompt');
     $router->get('/audit/{uuid}/get', 'AuditController@get', false);
+    $router->get('/audit/{uuid}/admin-get', 'AuditController@getAdminDetails');
     $router->delete('/audit/{uuid}/delete', 'AuditController@delete');
     $router->put('/audit/{uuid}/edit', 'AuditController@edit');
     $router->post('/audit/{uuid}/start', 'AuditController@start',false);

@@ -193,6 +193,51 @@ class AuditController {
         }
     }
 
+    public function getAdminDetails($params) {
+        try {
+            // Verify the user is authenticated (admin-only route)
+            if (!isset($_SESSION['user_id'])) {
+                try {
+                    $userData = AuthMiddleware::getAuthenticatedUser();
+                    if (!$userData || !isset($userData->id)) {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'Unauthorized access']);
+                        return;
+                    }
+                } catch (Exception $e) {
+                    http_response_code(403);
+                    echo json_encode(['error' => 'Unauthorized access']);
+                    return;
+                }
+            }
+            
+            $uuid = $params['uuid'];
+            $audit = $this->audit->getByUuid($uuid);
+            
+            if (!$audit) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Audit not found']);
+                return;
+            }
+
+            // Set auth type based on audit type
+            $audit["auth_type"] = $audit['type'] === 'assign' ? 'code' : 'public';
+            
+            // Keep all fields for admin, don't remove anything
+            // We want all the data for the edit form
+            
+            echo json_encode(["data" => $audit]);
+        } catch (Exception $e) {
+            error_log("Error in AuditController@getAdminDetails: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
     public function list() {
         try {
             $audits = $this->audit->getAll();
