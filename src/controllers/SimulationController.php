@@ -71,11 +71,15 @@ class SimulationController {
             echo json_encode($messages, JSON_PRETTY_PRINT) . "\n\n";
 
             // Create user
+            $emailPrefix = explode('@', $email)[0];
+            $randomString = substr(str_shuffle('0123456789abcdefghijklmnopqrstuvwxyz'), 0, 6);
+            $username = 'si_' . $emailPrefix . '_' . $randomString;
+
             $userId = $this->user->create([
                 'name' => $name,
                 'email' => $email,
                 'position' => $position,
-                'username' => explode('@', $email)[0],
+                'username' => $username,
                 'password' => null,
                 'organizations' => [$auditData['organization']],
                 'permission' => 'user'
