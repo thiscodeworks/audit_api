@@ -96,32 +96,11 @@ class SimulationController {
             $stmt->execute([$userId, $auditData['id'], $accessCode]);
 
             // Create chat with timestamp from yesterday
-            $maxRetries = 5;
-            $chatUuid = null;
-            
-            for ($i = 0; $i < $maxRetries; $i++) {
-                $generatedUuid = bin2hex(random_bytes(16));
-                
-                // Check if UUID exists
-                $stmt = $this->db->prepare("SELECT COUNT(*) FROM chats WHERE uuid = ?");
-                $stmt->execute([$generatedUuid]);
-                $exists = $stmt->fetchColumn();
-                
-                if (!$exists) {
-                    $chatUuid = $generatedUuid;
-                    break;
-                }
-            }
-            
-            if (!$chatUuid) {
-                throw new Exception('Failed to generate unique chat UUID after ' . $maxRetries . ' attempts');
-            }
+            $chatUuid = $this->chat->create($auditUuid, $userId);
 
-            $stmt = $this->db->prepare("
-                INSERT INTO chats (uuid, audit_uuid, user, state, created_at)
-                VALUES (?, ?, ?, 'open', DATE_SUB(NOW(), INTERVAL 1 DAY))
-            ");
-            $stmt->execute([$chatUuid, $auditUuid, $userId]);
+            // Update chat creation time to yesterday
+            $stmt = $this->db->prepare("UPDATE chats SET created_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE uuid = ?");
+            $stmt->execute([$chatUuid]);
 
             // Save messages with simulated timestamps
             $baseTime = strtotime('-1 day'); // Start from yesterday
