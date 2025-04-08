@@ -119,12 +119,20 @@ class SimulationController {
                 $randomSeconds = rand(0, 59);
                 $messageTime = date('Y-m-d H:i:s', $baseTime + ($index * $messageInterval) + $randomSeconds);
                 
-                // Create message with specific timestamp
+                // Create message using the Message model
+                $this->message->create($chatUuid, $msg['content'], $msg['role']);
+                
+                // Update the message's created_at timestamp
                 $stmt = $this->db->prepare("
-                    INSERT INTO messages (chat_uuid, content, role, created_at)
-                    VALUES (?, ?, ?, ?)
+                    UPDATE messages 
+                    SET created_at = ? 
+                    WHERE chat_uuid = ? 
+                    AND content = ? 
+                    AND role = ?
+                    ORDER BY id DESC 
+                    LIMIT 1
                 ");
-                $stmt->execute([$chatUuid, $msg['content'], $msg['role'], $messageTime]);
+                $stmt->execute([$messageTime, $chatUuid, $msg['content'], $msg['role']]);
             }
 
             echo json_encode([
