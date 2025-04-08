@@ -96,9 +96,17 @@ class SimulationController {
             $stmt->execute([$userId, $auditData['id'], $accessCode]);
 
             // Create chat with timestamp from yesterday
-            $chatUuid = $this->chat->create($auditUuid, $userId);
+            error_log("SimulationController::employeeSimulate - Attempting to create chat for audit: " . $auditUuid . ", user: " . $userId);
+            try {
+                $chatUuid = $this->chat->create($auditUuid, $userId);
+                error_log("SimulationController::employeeSimulate - Successfully created chat with UUID: " . $chatUuid);
+            } catch (Exception $e) {
+                error_log("SimulationController::employeeSimulate - Error creating chat: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+                throw $e;
+            }
 
             // Update chat creation time to yesterday
+            error_log("SimulationController::employeeSimulate - Updating chat creation time for UUID: " . $chatUuid);
             $stmt = $this->db->prepare("UPDATE chats SET created_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE uuid = ?");
             $stmt->execute([$chatUuid]);
 

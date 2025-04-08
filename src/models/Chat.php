@@ -187,17 +187,32 @@ class Chat {
 
     public function create($auditUuid, $userId = null) {
         try {
+            error_log("Chat::create - Starting chat creation with auditUuid: " . $auditUuid . ", userId: " . $userId);
+            
             $uuid = $this->generateUuid();
+            error_log("Chat::create - Generated UUID: " . $uuid);
             
             $stmt = $this->db->prepare("
                 INSERT INTO chats (uuid, audit_uuid, user)
                 VALUES (?, ?, ?)
             ");
-            $stmt->execute([$uuid, $auditUuid, $userId]);
             
+            error_log("Chat::create - Executing insert with values: uuid=" . $uuid . ", auditUuid=" . $auditUuid . ", userId=" . $userId);
+            
+            if (!$stmt->execute([$uuid, $auditUuid, $userId])) {
+                $error = $stmt->errorInfo();
+                error_log("Chat::create - Execute failed: " . json_encode($error));
+                throw new Exception("Failed to execute query: " . $error[2]);
+            }
+            
+            error_log("Chat::create - Successfully created chat");
             return $uuid;
         } catch (PDOException $e) {
+            error_log("Chat::create - PDO Error: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
             throw new Exception("Error creating chat: " . $e->getMessage());
+        } catch (Exception $e) {
+            error_log("Chat::create - General Error: " . $e->getMessage() . "\nStack trace: " . $e->getTraceAsString());
+            throw $e;
         }
     }
 
