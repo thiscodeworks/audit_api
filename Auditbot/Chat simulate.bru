@@ -1,0 +1,20 @@
+meta {
+  name: Chat simulate
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:8080/simulate/b034314b8f1854bc5b54a28c26c13d6f
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+      "structure": "Tech company with departments: Engineering, Sales, Marketing, HR",
+      "employee_count": 5,
+      "issues": ["Communication gaps between departments", "High workload in Engineering", "Sales targets too aggressive"],
+      "email_domain": "@company.com"
+  }
+}

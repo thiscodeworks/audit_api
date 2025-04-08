@@ -659,7 +659,7 @@ Respond ONLY with the JSON object, no additional text.";
                 - NEVER WRITE ANYTHING EXCEPT THE RAW JSON OBJECT
                 
                 Instructions for analysis:
-                1. IDENTIFY 8-12 MAIN TOPIC AREAS from these findings
+                1. IDENTIFY 4-10 MAIN TOPIC AREAS from these findings
                 2. For each topic:
                    - Create a clear, descriptive name (title)
                    - Provide a detailed description of at least 400 characters
@@ -667,13 +667,19 @@ Respond ONLY with the JSON object, no additional text.";
                 3. Create an overview of all main topics
                 4. Structure must be logical and comprehensive
                 5. Topics should be distinct but cover all important areas
+                6. USE MARKDOWN FORMATTING in descriptions:
+                   - Use line breaks (\\n) for paragraph separation
+                   - Use bullet points (- Item) for lists
+                   - Use **bold** for emphasis
+                   - Use _italic_ for secondary emphasis
+                   - DO NOT use HTML tags
                 
                 YOUR ENTIRE RESPONSE MUST BE THIS JSON STRUCTURE, WITH NO OTHER TEXT:
                 {
                     \"topics\": [
                         {
                             \"name\": \"Název kategorie\",
-                            \"description\": \"Podrobný popis kategorie v alespoň 400 znacích\",
+                            \"description\": \"První odstavec s popisem kategorie.\\n\\nDruhý odstavec s detaily. Text může obsahovat **zvýrazněné** nebo _kurzívou_ psané části.\\n\\nMůže obsahovat i odrážky:\\n- První bod\\n- Druhý bod\",
                             \"finding_indices\": [0, 5, 10, 15]
                         }
                     ],
@@ -687,9 +693,10 @@ Respond ONLY with the JSON object, no additional text.";
                 
                 Rules for your JSON response:
                 - All content must be in clear, professional Czech
-                - IDENTIFY AT LEAST 8-12 DISTINCT TOPICS
+                - IDENTIFY AT LEAST 4-10 DISTINCT TOPICS
                 - Make topics specific enough to be meaningful but broad enough to group related findings
-                - Each topic description must thoroughly explain what the category covers
+                - Each topic description must thoroughly explain what the category covers (at least 400 characters)
+                - FORMATTING: Include line breaks (\\n), paragraphs, and basic markdown (**, _) in descriptions
                 - Don't just repeat the title in the description - provide context and significance
                 - YOUR ENTIRE RESPONSE MUST BE VALID JSON STARTING WITH { AND ENDING WITH }";
                 
@@ -776,15 +783,21 @@ Respond ONLY with the JSON object, no additional text.";
                        - Write comprehensive recommendations of at least 400 characters
                        - Identify which chat indices this finding relates to
                     4. Findings should be comprehensive and cover all important aspects of this topic
+                    5. USE MARKDOWN FORMATTING in descriptions and recommendations:
+                       - Use line breaks (\\n) for paragraph separation
+                       - Use bullet points (- Item) for lists
+                       - Use **bold** for emphasis
+                       - Use _italic_ for secondary emphasis
+                       - DO NOT use HTML tags
                     
                     YOUR ENTIRE RESPONSE MUST BE THIS JSON STRUCTURE, WITH NO OTHER TEXT:
                     {
                         \"findings\": [
                             {
                                 \"title\": \"Jasný název zjištění\",
-                                \"description\": \"Podrobný popis zjištění v rozsahu alespoň 300 znaků. Vysvětlete, v čem spočívá problém nebo příležitost, jaký má dopad a proč je důležité se tímto zjištěním zabývat. Popis by měl být informativní a specifický.\",
+                                \"description\": \"První odstavec s popisem problému.\\n\\nDruhý odstavec s dalšími detaily. Text může obsahovat **zvýrazněné** nebo _kurzívou_ psané části.\\n\\nMůže obsahovat i odrážky:\\n- První bod\\n- Druhý bod\",
                                 \"severity\": \"low\",
-                                \"recommendation\": \"Komplexní a konkrétní doporučení v rozsahu alespoň 400 znaků. Uveďte konkrétní kroky, které by měly být podniknuty, jak je implementovat, a jaký přínos to bude mít. Doporučení by mělo být praktické, proveditelné a přímo řešit popsané zjištění.\",
+                                \"recommendation\": \"První odstavec s doporučením.\\n\\nDruhý odstavec s konkrétními kroky:\\n- Krok 1: Popis\\n- Krok 2: Popis\\n\\nTřetí odstavec s očekávanými výsledky.\",
                                 \"chat_id\": [0, 1, 2]
                             }
                         ]
@@ -796,6 +809,7 @@ Respond ONLY with the JSON object, no additional text.";
                     - CREATE AT LEAST 4-6 DETAILED FINDINGS for this topic
                     - DETAILED DESCRIPTIONS: All finding descriptions must be at least 300 characters
                     - DETAILED RECOMMENDATIONS: All recommendations must be at least 400 characters
+                    - FORMATTING: Include line breaks (\\n), paragraphs, and basic markdown (**, _) in descriptions and recommendations
                     - Be specific and actionable in your recommendations
                     - YOUR ENTIRE RESPONSE MUST BE VALID JSON STARTING WITH { AND ENDING WITH }";
                     
@@ -885,36 +899,80 @@ Key findings:
                 $homeSlidePrompt .= "
 
 EXTREMELY IMPORTANT - YOU MUST FOLLOW THESE RULES:
-- YOUR RESPONSE MUST BE PURE HTML CONTENT ONLY
-- DO NOT INCLUDE ANY TEXT BEFORE OR AFTER THE HTML
+- YOUR RESPONSE MUST BE PURE JSON CONTENT ONLY
+- DO NOT INCLUDE ANY TEXT BEFORE OR AFTER THE JSON
 - DO NOT SAY 'I UNDERSTAND' OR ASK QUESTIONS
 - DO NOT EXPLAIN WHAT YOU'RE DOING
 - DO NOT USE MARKDOWN CODE BLOCKS
-- NEVER WRITE ANYTHING EXCEPT THE RAW HTML CONTENT
+- NEVER WRITE ANYTHING EXCEPT THE RAW JSON CONTENT
 
 Instructions for content creation:
-1. Create a comprehensive, insightful executive summary that follows EXACTLY the HTML structure shown below
-2. Use the exact HTML structure with the same classes, divs, and SVG elements as shown in the example
-3. Replace only the text content with your analysis while keeping all HTML structure, classes and elements
-4. Keep the same three sections: Shrnutí, Klíčové zjištění, and Návrhy na zlepšení
-5. Your content should analyze the audit findings in professional Czech
-6. The summary should be concise but comprehensive
-7. Key findings should focus on the most important insights from across all topics
-8. Improvement suggestions should be specific and actionable
+1. Create a comprehensive, insightful executive summary in JSON format
+2. Your content should analyze the audit findings in professional Czech
+3. The summary should be concise but comprehensive
+4. Key findings should focus on the most important insights from across all topics
+5. Improvement suggestions should be specific and actionable
+6. USE MARKDOWN FORMATTING in all text fields:
+   - Use line breaks (\\n) for paragraph separation
+   - Use bullet points (- Item) for lists
+   - Use **bold** for emphasis
+   - Use _italic_ for secondary emphasis
+   - DO NOT use HTML tags
 
-EXACTLY COPY THIS HTML STRUCTURE AND ONLY REPLACE THE TEXT CONTENT:
-<div><h3 class=\"text-sm font-medium mb-2\">Shrnutí</h3><p class=\"text-sm\">[YOUR COMPREHENSIVE SUMMARY HERE - 2-3 SENTENCES ABOUT THE AUDIT FINDINGS]</p></div><div><div class=\"flex items-center mb-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-circle-check-big h-4 w-4 mr-2 text-green-500\"><path d=\"M21.801 10A10 10 0 1 1 17 3.335\"></path><path d=\"m9 11 3 3L22 4\"></path></svg><h3 class=\"text-sm font-medium\">Klíčové zjištění</h3></div><div class=\"whitespace-pre-line text-sm\">[LIST 4-6 BULLET POINTS OF KEY FINDINGS, EACH STARTING WITH • ]</div></div><div><div class=\"flex items-center mb-2\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-circle-alert h-4 w-4 mr-2 text-amber-500\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"></line><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"></line></svg><h3 class=\"text-sm font-medium\">Návrhy na zlepšení</h3></div><div class=\"whitespace-pre-line text-sm\">[LIST 3-5 BULLET POINTS OF IMPROVEMENT SUGGESTIONS, EACH STARTING WITH • ]</div></div>
+YOUR ENTIRE RESPONSE MUST BE THIS JSON STRUCTURE, WITH NO OTHER TEXT:
+{
+    \"summary\": \"Podrobné shrnutí auditu o 2-3 odstavcích.\\n\\nDruhý odstavec s dalšími poznatky.\",
+    \"key_findings\": \"- Klíčové zjištění 1\\n- Klíčové zjištění 2\\n- Klíčové zjištění 3\\n- Klíčové zjištění 4\",
+    \"improvement_suggestions\": \"- Návrh na zlepšení 1\\n- Návrh na zlepšení 2\\n- Návrh na zlepšení 3\"
+}
 
-YOUR ENTIRE RESPONSE MUST BE VALID HTML CONTENT THAT MATCHES THIS STRUCTURE EXACTLY. START DIRECTLY WITH <div> AND END WITH </div>.";
+YOUR ENTIRE RESPONSE MUST BE VALID JSON STARTING WITH { AND ENDING WITH }.";
 
                 // Get home slide content from Anthropic
-                $homeSlideResponse = $this->anthropic->analyzeAuditWithSonnet($homeSlidePrompt, false);
+                $homeSlideResponse = $this->anthropic->analyzeAuditWithSonnet($homeSlidePrompt, true);
+                
+                // Parse JSON response
+                $homeSlideData = json_decode($homeSlideResponse, true);
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    error_log("JSON parse error in home slide: " . json_last_error_msg());
+                    // Fallback home slide if JSON parsing fails
+                    $homeSlideHtml = "<div><h3 class=\"text-sm font-medium mb-2\">Shrnutí</h3><p class=\"text-sm\">Analýza nebyla úspěšně zpracována.</p></div>";
+                } else {
+                    // Create HTML content from JSON data
+                    $homeSlideHtml = "
+                    <div>
+                        <h3 class=\"text-sm font-medium mb-2\">Shrnutí</h3>
+                        <p class=\"text-sm whitespace-pre-line\">{$homeSlideData['summary']}</p>
+                    </div>
+                    <div>
+                        <div class=\"flex items-center mb-2\">
+                            <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-circle-check-big h-4 w-4 mr-2 text-green-500\">
+                                <path d=\"M21.801 10A10 10 0 1 1 17 3.335\"></path>
+                                <path d=\"m9 11 3 3L22 4\"></path>
+                            </svg>
+                            <h3 class=\"text-sm font-medium\">Klíčové zjištění</h3>
+                        </div>
+                        <div class=\"whitespace-pre-line text-sm\">{$homeSlideData['key_findings']}</div>
+                    </div>
+                    <div>
+                        <div class=\"flex items-center mb-2\">
+                            <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-circle-alert h-4 w-4 mr-2 text-amber-500\">
+                                <circle cx=\"12\" cy=\"12\" r=\"10\"></circle>
+                                <line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"></line>
+                                <line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"></line>
+                            </svg>
+                            <h3 class=\"text-sm font-medium\">Návrhy na zlepšení</h3>
+                        </div>
+                        <div class=\"whitespace-pre-line text-sm\">{$homeSlideData['improvement_suggestions']}</div>
+                    </div>";
+                }
                 
                 // Create home slide
                 $homeSlideQuery = "INSERT INTO audit_slides (audit_id, name, description, is_home, html_content, order_index) 
                                  VALUES (?, 'Home', 'Executive Summary', 1, ?, 0)";
                 $stmt = $db->prepare($homeSlideQuery);
-                $stmt->execute([$audit['id'], $homeSlideResponse]);
+                $stmt->execute([$audit['id'], $homeSlideHtml]);
 
                 $db->commit();
 

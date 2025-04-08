@@ -37,6 +37,7 @@ require_once __DIR__ . '/../src/controllers/AuthController.php';
 require_once __DIR__ . '/../src/controllers/UserController.php';
 require_once __DIR__ . '/../src/controllers/AnalyzeController.php';
 require_once __DIR__ . '/../src/controllers/OrganizationController.php';
+require_once __DIR__ . '/../src/controllers/SimulationController.php';
 require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 
 $router = new Router();
@@ -46,7 +47,12 @@ $authMiddleware = new AuthMiddleware();
 function registerRoutes($router) {
     // Auth routes
     $router->post('/auth/login', 'AuthController@login', false); // Public route
+    $router->post('/auth/verify', 'AuthController@verifyToken', false); // Public route
     $router->get('/auth/me', 'AuthController@me');
+
+    // Simulation routes
+    $router->post('/simulate/{uuid}', 'SimulationController@simulate', false);
+    $router->post('/simulate/{uuid}/employee', 'SimulationController@employeeSimulate', false);
 
     // User routes
     $router->get('/users', 'UserController@list');
