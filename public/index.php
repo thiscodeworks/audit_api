@@ -48,6 +48,8 @@ function registerRoutes($router) {
     // Auth routes
     $router->post('/auth/login', 'AuthController@login', false); // Public route
     $router->post('/auth/verify', 'AuthController@verifyToken', false); // Public route
+    $router->post('/auth/register', 'AuthController@register', false); // Public route
+    $router->post('/auth/verify-email', 'AuthController@verifyEmail', false); // Public route
     $router->get('/auth/me', 'AuthController@me');
 
     // Simulation routes
